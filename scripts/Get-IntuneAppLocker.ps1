@@ -1,22 +1,80 @@
+<#
+.SYNOPSIS
+    Reads Intune/MDM AppLocker policies and outputs either a readable table or full XML.
+.DESCRIPTION
+    Detects all Policy files under C:\Windows\System32\AppLocker\MDM
+    and merges them for display.
+.PARAMETER Xml
+    Switch. If provided, outputs the full merged XML instead of a table.
+#>
+
+param(
+    [switch]$Xml
+)
+
 $mdmRoot = "C:\Windows\System32\AppLocker\MDM"
 
-function Parse-MDMPolicyFile {
-    param([string]$filePath, [string]$ruleType)
+# Function to load a single Policy file as XML
+function Get-MDMPolicyXml {
+    param([string]$filePath)
 
-    if (-Not (Test-Path $filePath)) { return @() }
+    if (-Not (Test-Path $filePath)) { return $null }
 
     try {
-        # Read as Unicode and remove nulls
+        # Read file as bytes and decode as Unicode
         $bytes = Get-Content -Path $filePath -Encoding Byte -ErrorAction Stop
+        if ($bytes.Length -eq 0) { return $null }
+
         $text = [System.Text.Encoding]::Unicode.GetString($bytes) -replace "`0",""
+        [xml]$xmlDoc = $text
+        return $xmlDoc
+    }
+    catch {
+        Write-Warning ("Failed to read XML file " + $filePath + ": " + $_.Exception.Message)
+        return $null
+    }
+}
 
-        [xml]$xml = $text
+# Find all Policy files
+try {
+    $policyFiles = Get-ChildItem -Path $mdmRoot -Recurse -Filter "Policy" -File -ErrorAction Stop
+}
+catch {
+    Write-Warning ("Failed to access folder " + $mdmRoot + ": " + $_.Exception.Message)
+    return
+}
 
-        $results = @()
+if ($policyFiles.Count -eq 0) {
+    Write-Host "No AppLocker policies found under $mdmRoot"
+    return
+}
 
-        foreach ($rule in $xml.RuleCollection.ChildNodes) {
-            # Some rules may not have Name/UserOrGroupSid/Action; handle safely
-            $results += [PSCustomObject]@{
+# Merge XML documents for -Xml output
+$mergedXml = New-Object System.Xml.XmlDocument
+$root = $mergedXml.CreateElement("AppLockerPolicy")
+$mergedXml.AppendChild($root) | Out-Null
+
+foreach ($file in $policyFiles) {
+    $policyXml = Get-MDMPolicyXml -filePath $file.FullName
+    if ($policyXml -ne $null) {
+        foreach ($ruleCollection in $policyXml.SelectNodes("RuleCollection")) {
+            $imported = $mergedXml.ImportNode($ruleCollection, $true)
+            $root.AppendChild($imported) | Out-Null
+        }
+    }
+}
+
+if ($Xml) {
+    # Output full merged XML
+    $mergedXml.OuterXml
+}
+else {
+    # Build table view
+    $allRules = @()
+    foreach ($ruleCollection in $mergedXml.SelectNodes("//RuleCollection")) {
+        $ruleType = $ruleCollection.Type
+        foreach ($rule in $ruleCollection.ChildNodes) {
+            $allRules += [PSCustomObject]@{
                 RuleType       = $ruleType
                 RuleClass      = $rule.Name
                 Name           = $rule.GetAttribute("Name")
@@ -24,32 +82,12 @@ function Parse-MDMPolicyFile {
                 UserOrGroupSid = $rule.GetAttribute("UserOrGroupSid")
             }
         }
-
-        return $results
     }
-    catch {
-        Write-Warning ("Failed to parse file " + $filePath + ": " + $_.Exception.Message)
-        return @()
+
+    if ($allRules.Count -gt 0) {
+        $allRules | Sort-Object RuleType, Name | Format-Table -AutoSize
     }
-}
-
-# Find all Policy files
-$policyFiles = Get-ChildItem -Path $mdmRoot -Recurse -Filter "Policy" -File
-
-if ($policyFiles.Count -eq 0) {
-    Write-Host "No AppLocker policies found under $mdmRoot"
-    return
-}
-
-$allRules = @()
-foreach ($policyFile in $policyFiles) {
-    $ruleType = ($policyFile.DirectoryName -split '\\')[-1]
-    $allRules += Parse-MDMPolicyFile -filePath $policyFile.FullName -ruleType $ruleType
-}
-
-if ($allRules.Count -gt 0) {
-    $allRules | Sort-Object RuleType, Name | Format-Table -AutoSize
-}
-else {
-    Write-Host "No rules found in the Intune/MDM AppLocker policies."
+    else {
+        Write-Host "No rules found in the Intune/MDM AppLocker policies."
+    }
 }
