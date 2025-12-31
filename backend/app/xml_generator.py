@@ -119,9 +119,36 @@ class AppLockerXMLGenerator:
         
         # Add conditions
         conditions_elem = etree.SubElement(rule_elem, "Conditions")
-        for condition in rule.conditions:
-            condition_elem = self._create_condition(condition)
-            conditions_elem.append(condition_elem)
+        
+        # For FileHashRule, group all FileHashCondition entries into a single FileHashCondition
+        if rule_type == "FileHashRule":
+            # Collect all hash conditions
+            hash_conditions = [cond for cond in rule.conditions if cond.get("type") == "FileHashCondition"]
+            if hash_conditions:
+                # Create a single FileHashCondition with all FileHash elements
+                hash_elem = etree.Element("FileHashCondition")
+                for condition in hash_conditions:
+                    file_hash = etree.SubElement(hash_elem, "FileHash")
+                    file_hash.set("Type", condition.get("hash_type", "SHA256"))
+                    
+                    # Add 0x prefix to hash data to match original format
+                    hash_data = condition.get("file_hash", "")
+                    if hash_data and not hash_data.startswith("0x") and not hash_data.startswith("0X"):
+                        hash_data = "0x" + hash_data.upper()
+                    
+                    file_hash.set("Data", hash_data)
+                    file_hash.set("SourceFileName", condition.get("source_file_name", ""))
+                    
+                    source_file_length = condition.get("source_file_length")
+                    if source_file_length:
+                        file_hash.set("SourceFileLength", str(source_file_length))
+                
+                conditions_elem.append(hash_elem)
+        else:
+            # For other rule types, create condition elements normally
+            for condition in rule.conditions:
+                condition_elem = self._create_condition(condition)
+                conditions_elem.append(condition_elem)
         
         # Add exceptions if present (for FilePathRule)
         if rule.exceptions and len(rule.exceptions) > 0:
@@ -423,7 +450,7 @@ class AppLockerXMLGenerator:
                 
                 conditions.append(condition)
             
-            # Hash conditions - can have multiple FileHash elements within a single FileHashCondition
+            # Hash conditions - create a separate FileHashCondition for each FileHash element
             hash_conditions = search_root.findall(f".//{ns_prefix}FileHashCondition")
             if not hash_conditions:
                 hash_conditions = search_root.findall(".//FileHashCondition")
@@ -433,32 +460,19 @@ class AppLockerXMLGenerator:
                 if not file_hash_elems:
                     file_hash_elems = hash_cond.findall(".//FileHash")
                 
-                # Group all FileHash elements from this FileHashCondition into a single condition
-                # with a hashes array
-                hashes = []
+                # Create a separate condition for each FileHash element
                 for file_hash_elem in file_hash_elems:
                     hash_data = file_hash_elem.get("Data", "")
                     # Remove 0x prefix if present
                     if hash_data.startswith("0x") or hash_data.startswith("0X"):
                         hash_data = hash_data[2:]
                     
-                    hashes.append({
+                    conditions.append({
+                        "type": "FileHashCondition",
                         "file_hash": hash_data,
                         "hash_type": file_hash_elem.get("Type", "SHA256"),
                         "source_file_name": file_hash_elem.get("SourceFileName", ""),
                         "source_file_length": file_hash_elem.get("SourceFileLength"),
-                    })
-                
-                if hashes:
-                    # Create a single condition with multiple hashes
-                    conditions.append({
-                        "type": "FileHashCondition",
-                        "hashes": hashes,
-                        # For backward compatibility, also include the first hash at the top level
-                        "file_hash": hashes[0]["file_hash"],
-                        "hash_type": hashes[0]["hash_type"],
-                        "source_file_name": hashes[0]["source_file_name"],
-                        "source_file_length": hashes[0]["source_file_length"],
                     })
         
         # Parse exceptions (for FilePathRule)

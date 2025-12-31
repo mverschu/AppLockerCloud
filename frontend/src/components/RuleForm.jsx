@@ -19,6 +19,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   Alert,
+  Tooltip,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -238,6 +239,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
         alert('Please enter file hash and source file name')
         return
       }
+      // Create a separate FileHashCondition for each hash
       newConditionObj = {
         type: 'FileHashCondition',
         file_hash: condition.file_hash,
@@ -425,14 +427,84 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
               <Typography variant="h6" gutterBottom>
                 Conditions
               </Typography>
-              {formData.conditions.map((condition, index) => (
-                <Chip
-                  key={index}
-                  label={`${condition.type}: ${condition.path || condition.publisher_name || condition.file_hash || 'N/A'}`}
-                  onDelete={() => handleRemoveCondition(index)}
-                  sx={{ m: 0.5 }}
-                />
-              ))}
+              {formData.conditions.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  No conditions added yet.
+                </Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {formData.conditions.map((condition, index) => {
+                    if (condition.type === 'FilePathCondition') {
+                      return (
+                        <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2" fontWeight="medium">Path Condition</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                              {condition.path || 'N/A'}
+                            </Typography>
+                          </Box>
+                          <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      )
+                    } else if (condition.type === 'FilePublisherCondition') {
+                      return (
+                        <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2" fontWeight="medium">Publisher Condition</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                              {condition.publisher_name || 'N/A'}
+                            </Typography>
+                            {(condition.product_name || condition.binary_name) && (
+                              <Typography variant="caption" color="text.secondary">
+                                Product: {condition.product_name || '*'}, Binary: {condition.binary_name || '*'}
+                              </Typography>
+                            )}
+                          </Box>
+                          <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      )
+                    } else if (condition.type === 'FileHashCondition') {
+                      const hashValue = condition.file_hash || ''
+                      return (
+                        <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2" fontWeight="medium">Hash Condition</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                              File: <strong>{condition.source_file_name || 'N/A'}</strong>
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all' }}>
+                              Hash: {hashValue || 'N/A'}
+                            </Typography>
+                            {condition.source_file_length && (
+                              <Typography variant="caption" color="text.secondary">
+                                Size: {condition.source_file_length} bytes
+                              </Typography>
+                            )}
+                          </Box>
+                          <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      )
+                    } else {
+                      return (
+                        <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2">{condition.type || 'Unknown'}</Typography>
+                          </Box>
+                          <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      )
+                    }
+                  })}
+                </Box>
+              )}
             </Grid>
 
             <Grid item xs={12}>
@@ -533,7 +605,8 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                           value={newCondition.file_hash}
                           onChange={handleConditionFieldChange('file_hash')}
                           required
-                          placeholder="A1B2C3D4..."
+                          placeholder="A1B2C3D4... or 0xA1B2C3D4..."
+                          helperText="Enter SHA256 hash (with or without 0x prefix)"
                         />
                         <TextField
                           fullWidth
@@ -541,7 +614,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                           value={newCondition.source_file_name}
                           onChange={handleConditionFieldChange('source_file_name')}
                           required
-                          placeholder="example.exe"
+                          placeholder="example.dll"
                         />
                       </>
                     )}
