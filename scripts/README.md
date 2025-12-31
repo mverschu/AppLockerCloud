@@ -13,3 +13,7 @@ Create a XML export that can be used within application using import from text (
 Import in web app:
 
 <img width="978" height="596" alt="image" src="https://github.com/user-attachments/assets/a3dc5159-085a-403e-8e4b-914c353c1a60" />
+
+### On-premises
+Have a look at the original PowerShell CMDlet for getting AppLocker policies in on-prem environments:</br>
+https://learn.microsoft.com/en-us/powershell/module/applocker/get-applockerpolicy
