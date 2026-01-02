@@ -141,6 +141,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
   const [editingExceptionIndex, setEditingExceptionIndex] = useState(null) // null when not editing, index when editing
   const [loadingHash, setLoadingHash] = useState(false)
   const [hashFileInputKey, setHashFileInputKey] = useState(0) // For resetting file input
+  const [peFileWarning, setPeFileWarning] = useState({ show: false, isException: false }) // Track PE file warning
 
   useEffect(() => {
     loadCollections()
@@ -199,6 +200,11 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
       ...newCondition,
       [field]: value,
     })
+    
+    // Clear PE file warning if hash is manually changed (user might be pasting correct hash)
+    if (field === 'file_hash') {
+      setPeFileWarning({ show: false, isException: false })
+    }
     
     // Check for path suggestions when path field changes
     if (field === 'path' && value) {
@@ -317,6 +323,11 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
         ...newException,
         [field]: value,
       })
+      
+      // Clear PE file warning if hash is manually changed (user might be pasting correct hash)
+      if (field === 'file_hash') {
+        setPeFileWarning({ show: false, isException: false })
+      }
       
       // Check for path suggestions when path field changes
       if (field === 'path' && value) {
@@ -518,6 +529,13 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     try {
       const hashInfo = await calculateFileHash(file)
       
+      // Show warning if this is a PE file
+      if (hashInfo.isPE) {
+        setPeFileWarning({ show: true, isException })
+      } else {
+        setPeFileWarning({ show: false, isException: false })
+      }
+      
       if (isException) {
         setNewException({
           ...newException,
@@ -544,6 +562,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     } catch (error) {
       alert(`Failed to calculate file hash: ${error.message}`)
       console.error('Hash calculation error:', error)
+      setPeFileWarning({ show: false, isException: false })
     } finally {
       setLoadingHash(false)
     }
@@ -858,7 +877,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                             onChange={handleConditionFieldChange('file_hash')}
                             required
                             placeholder="A1B2C3D4... or 0xA1B2C3D4..."
-                            helperText="Enter SHA256 hash (with or without 0x prefix)"
+                            helperText="Enter SHA256 hash (with or without 0x prefix). For PE files, use Get-AppLockerFileInformation on Windows to get the correct Authenticode hash."
                           />
                           <input
                             accept="*"
@@ -880,6 +899,25 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                             {loadingHash ? 'Calculating...' : 'From File'}
                           </Button>
                         </Box>
+                        {peFileWarning.show && !peFileWarning.isException && (
+                          <Alert severity="warning" sx={{ mt: 1, mb: 1 }}>
+                            <Typography variant="body2" component="div">
+                              <strong>PE File Detected:</strong> This appears to be a Portable Executable (.exe, .dll, etc.) file.
+                              AppLocker uses <strong>Authenticode hashing</strong> for PE files, which excludes the certificate table
+                              and checksum from the hash calculation. The hash calculated here may <strong>not match</strong> what AppLocker
+                              uses for enforcement.
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 1 }}>
+                              To get the correct hash that AppLocker will recognize, use PowerShell on Windows:
+                            </Typography>
+                            <Box component="code" sx={{ display: 'block', mt: 1, p: 1, bgcolor: 'rgba(0,0,0,0.05)', borderRadius: 1, fontSize: '0.875rem' }}>
+                              Get-AppLockerFileInformation -Path "C:\path\to\file.exe" | Select-Object -ExpandProperty Hash
+                            </Box>
+                            <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                              For non-PE files (scripts, etc.), the hash calculated here should work correctly.
+                            </Typography>
+                          </Alert>
+                        )}
                         <TextField
                           fullWidth
                           label="Source File Name"
@@ -1082,7 +1120,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                             value={newException.file_hash}
                             onChange={handleExceptionFieldChange('file_hash')}
                             placeholder="E4BF8DA2B31F81D58CDAEEA94C527D4FAC2A3255D2D4DA91BDA7B6C89F68A09B"
-                            helperText="SHA256 hash value (without 0x prefix)"
+                            helperText="SHA256 hash value (without 0x prefix). For PE files, use Get-AppLockerFileInformation on Windows to get the correct Authenticode hash."
                             required
                           />
                           <input
@@ -1105,6 +1143,25 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                             {loadingHash ? 'Calculating...' : 'From File'}
                           </Button>
                         </Box>
+                        {peFileWarning.show && peFileWarning.isException && (
+                          <Alert severity="warning" sx={{ mt: 1, mb: 1 }}>
+                            <Typography variant="body2" component="div">
+                              <strong>PE File Detected:</strong> This appears to be a Portable Executable (.exe, .dll, etc.) file.
+                              AppLocker uses <strong>Authenticode hashing</strong> for PE files, which excludes the certificate table
+                              and checksum from the hash calculation. The hash calculated here may <strong>not match</strong> what AppLocker
+                              uses for enforcement.
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 1 }}>
+                              To get the correct hash that AppLocker will recognize, use PowerShell on Windows:
+                            </Typography>
+                            <Box component="code" sx={{ display: 'block', mt: 1, p: 1, bgcolor: 'rgba(0,0,0,0.05)', borderRadius: 1, fontSize: '0.875rem' }}>
+                              Get-AppLockerFileInformation -Path "C:\path\to\file.exe" | Select-Object -ExpandProperty Hash
+                            </Box>
+                            <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                              For non-PE files (scripts, etc.), the hash calculated here should work correctly.
+                            </Typography>
+                          </Alert>
+                        )}
                         <TextField
                           fullWidth
                           label="Source File Name"

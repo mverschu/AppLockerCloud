@@ -5,12 +5,33 @@
 
 /**
  * Calculate SHA256 hash of a file
+ * 
+ * IMPORTANT: For PE (Portable Executable) files (.exe, .dll, etc.), AppLocker uses
+ * Authenticode hashing, NOT a simple file hash. Authenticode hashing excludes the
+ * certificate table and checksum from the hash calculation, so this function will
+ * produce a DIFFERENT hash than what AppLocker uses.
+ * 
+ * To get the correct hash for PE files that AppLocker will recognize, use PowerShell
+ * on Windows:
+ *   Get-AppLockerFileInformation -Path "C:\path\to\file.exe" | Select-Object -ExpandProperty Hash
+ * 
+ * For non-PE files (scripts, etc.), this simple SHA256 hash should work correctly.
+ * 
  * @param {File} file - The file to hash
- * @returns {Promise<{hash: string, size: number, filename: string}>}
+ * @returns {Promise<{hash: string, size: number, filename: string, isPE: boolean}>}
  */
 export async function calculateFileHash(file) {
   try {
     const arrayBuffer = await file.arrayBuffer()
+    
+    // Check if this is a PE file by looking for MZ signature
+    let isPE = false
+    if (arrayBuffer.byteLength >= 2) {
+      const view = new DataView(arrayBuffer)
+      const mzSignature = view.getUint16(0, true) // Little-endian
+      isPE = (mzSignature === 0x5A4D) // "MZ" in little-endian
+    }
+    
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
@@ -18,7 +39,8 @@ export async function calculateFileHash(file) {
     return {
       hash: hashHex,
       size: file.size,
-      filename: file.name
+      filename: file.name,
+      isPE: isPE
     }
   } catch (error) {
     throw new Error(`Failed to calculate hash: ${error.message}`)
