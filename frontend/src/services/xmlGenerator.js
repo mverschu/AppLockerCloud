@@ -128,6 +128,47 @@ function createRule(rule, doc) {
         const excElem = doc.createElement('FilePathCondition')
         excElem.setAttribute('Path', exception.path || '')
         exceptionsElem.appendChild(excElem)
+      } else if (exception.type === 'FilePublisherCondition') {
+        const excElem = doc.createElement('FilePublisherCondition')
+        excElem.setAttribute('PublisherName', exception.publisher_name || '*')
+        excElem.setAttribute('ProductName', exception.product_name || '*')
+        excElem.setAttribute('BinaryName', exception.binary_name || '*')
+        
+        // Add BinaryVersionRange if version is specified
+        if (exception.version && exception.version !== '*') {
+          const versionRange = doc.createElement('BinaryVersionRange')
+          if (exception.version.includes('-')) {
+            const [low, high] = exception.version.split('-')
+            versionRange.setAttribute('LowSection', low || '*')
+            versionRange.setAttribute('HighSection', high || '*')
+          } else {
+            versionRange.setAttribute('LowSection', exception.version)
+            versionRange.setAttribute('HighSection', exception.version)
+          }
+          excElem.appendChild(versionRange)
+        }
+        
+        exceptionsElem.appendChild(excElem)
+      } else if (exception.type === 'FileHashCondition') {
+        const excElem = doc.createElement('FileHashCondition')
+        const fileHash = doc.createElement('FileHash')
+        fileHash.setAttribute('Type', exception.hash_type || 'SHA256')
+        
+        // Add 0x prefix to hash data if not present
+        let hashData = exception.file_hash || ''
+        if (hashData && !hashData.startsWith('0x') && !hashData.startsWith('0X')) {
+          hashData = '0x' + hashData.toUpperCase()
+        }
+        
+        fileHash.setAttribute('Data', hashData)
+        fileHash.setAttribute('SourceFileName', exception.source_file_name || '')
+        
+        if (exception.source_file_length) {
+          fileHash.setAttribute('SourceFileLength', String(exception.source_file_length))
+        }
+        
+        excElem.appendChild(fileHash)
+        exceptionsElem.appendChild(excElem)
       }
     }
     ruleElem.appendChild(exceptionsElem)
@@ -447,12 +488,60 @@ function parseRuleElement(ruleElem, collectionType) {
   const exceptions = []
   const exceptionsElem = ruleElem.querySelector('Exceptions')
   if (exceptionsElem) {
+    // Parse FilePathCondition exceptions
     const exceptionPaths = exceptionsElem.querySelectorAll('FilePathCondition')
     for (const excPath of exceptionPaths) {
       exceptions.push({
         type: 'FilePathCondition',
         path: excPath.getAttribute('Path') || '',
       })
+    }
+    
+    // Parse FilePublisherCondition exceptions
+    const exceptionPublishers = exceptionsElem.querySelectorAll('FilePublisherCondition')
+    for (const excPub of exceptionPublishers) {
+      const pubName = excPub.getAttribute('PublisherName') || '*'
+      const productName = excPub.getAttribute('ProductName') || '*'
+      const binaryName = excPub.getAttribute('BinaryName') || '*'
+      
+      const exception = {
+        type: 'FilePublisherCondition',
+        publisher_name: pubName,
+        product_name: productName,
+        binary_name: binaryName,
+      }
+      
+      const versionElem = excPub.querySelector('BinaryVersionRange')
+      if (versionElem) {
+        const lowSection = versionElem.getAttribute('LowSection') || '*'
+        const highSection = versionElem.getAttribute('HighSection') || '*'
+        exception.version = lowSection === highSection ? lowSection : `${lowSection}-${highSection}`
+      } else {
+        exception.version = '*'
+      }
+      
+      exceptions.push(exception)
+    }
+    
+    // Parse FileHashCondition exceptions
+    const exceptionHashes = exceptionsElem.querySelectorAll('FileHashCondition')
+    for (const excHash of exceptionHashes) {
+      const fileHashElems = excHash.querySelectorAll('FileHash')
+      for (const fileHashElem of fileHashElems) {
+        let hashData = fileHashElem.getAttribute('Data') || ''
+        // Remove 0x prefix if present
+        if (hashData.startsWith('0x') || hashData.startsWith('0X')) {
+          hashData = hashData.substring(2)
+        }
+        
+        exceptions.push({
+          type: 'FileHashCondition',
+          file_hash: hashData,
+          hash_type: fileHashElem.getAttribute('Type') || 'SHA256',
+          source_file_name: fileHashElem.getAttribute('SourceFileName') || '',
+          source_file_length: fileHashElem.getAttribute('SourceFileLength') || null,
+        })
+      }
     }
   }
   

@@ -130,15 +130,28 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
               <TableCell>
                 {rule.exceptions && Array.isArray(rule.exceptions) && rule.exceptions.length > 0 ? (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {rule.exceptions.map((exception, idx) => (
-                      <Chip
-                        key={idx}
-                        label={exception?.path || 'Exception'}
-                        size="small"
-                        variant="outlined"
-                        color="warning"
-                      />
-                    ))}
+                    {rule.exceptions.map((exception, idx) => {
+                      let label = ''
+                      if (exception?.type === 'FilePathCondition') {
+                        label = exception.path || 'Path Exception'
+                      } else if (exception?.type === 'FilePublisherCondition') {
+                        label = `Publisher: ${exception.publisher_name || 'N/A'}`
+                      } else if (exception?.type === 'FileHashCondition') {
+                        const hash = exception.file_hash || ''
+                        label = `Hash: ${hash.substring(0, 12)}... (${exception.hash_type || 'SHA256'})`
+                      } else {
+                        label = 'Exception'
+                      }
+                      return (
+                        <Chip
+                          key={idx}
+                          label={label}
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                        />
+                      )
+                    })}
                   </Box>
                 ) : (
                   <Typography variant="body2" color="text.secondary">

@@ -100,8 +100,10 @@ export const getRuleTips = (rule) => {
   })
   
   if (isWindowsRule) {
-    // Get existing exceptions
-    const existingExceptions = (rule.exceptions || []).map(exc => normalizePath(exc.path))
+    // Get existing exceptions (only FilePathCondition exceptions are relevant for path matching)
+    const existingExceptions = (rule.exceptions || [])
+      .filter(exc => exc.type === 'FilePathCondition')
+      .map(exc => normalizePath(exc.path))
     
     // Find unprotected bypass folders
     const unprotectedFolders = BYPASS_FOLDERS.filter(bypass => {
@@ -156,7 +158,7 @@ export const getRuleTips = (rule) => {
               <IconButton
                 size="small"
                 onClick={() => {
-                  navigator.clipboard.writeText('.\\accesschk64.exe "lowprivuser" C:\\Windows -wus')
+                  navigator.clipboard.writeText('accesschk64.exe "lowprivuser" C:\\Windows -wus')
                 }}
                 title="Copy to clipboard"
               >
@@ -275,9 +277,11 @@ export const getRuleTips = (rule) => {
       tipDescription = 'This rule allows execution from Program Files directories. The following executables are commonly abused living-off-the-land binaries and should be considered for restriction for standard users:'
     }
     
-    // Filter out binaries that are already covered by exceptions
+    // Filter out binaries that are already covered by exceptions (only FilePathCondition exceptions)
     if (livingOffTheLandBinaries.length > 0) {
-      const existingExceptions = (rule.exceptions || []).map(exc => normalizePath(exc.path))
+      const existingExceptions = (rule.exceptions || [])
+        .filter(exc => exc.type === 'FilePathCondition')
+        .map(exc => normalizePath(exc.path))
       
       livingOffTheLandBinaries = livingOffTheLandBinaries.filter(binary => {
         // Check if any exception already covers this binary path

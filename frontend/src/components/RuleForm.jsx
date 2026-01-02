@@ -117,6 +117,14 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
   const [newException, setNewException] = useState({
     type: 'FilePathCondition',
     path: '',
+    publisher_name: '',
+    product_name: '',
+    binary_name: '',
+    version: '',
+    file_hash: '',
+    hash_type: 'SHA256',
+    source_file_name: '',
+    source_file_length: '',
   })
   const [pathSuggestion, setPathSuggestion] = useState({ original: '', suggested: '', type: null }) // type: 'condition' or 'exception'
 
@@ -304,14 +312,41 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
   }
 
   const handleAddException = () => {
-    if (!newException.path) {
-      alert('Please enter a path')
-      return
-    }
+    let exceptionObj = {}
     
-    const exceptionObj = {
-      type: 'FilePathCondition',
-      path: newException.path,
+    if (newException.type === 'FilePathCondition') {
+      if (!newException.path) {
+        alert('Please enter a path')
+        return
+      }
+      exceptionObj = {
+        type: 'FilePathCondition',
+        path: newException.path,
+      }
+    } else if (newException.type === 'FilePublisherCondition') {
+      if (!newException.publisher_name) {
+        alert('Please enter a publisher name')
+        return
+      }
+      exceptionObj = {
+        type: 'FilePublisherCondition',
+        publisher_name: newException.publisher_name || '*',
+        product_name: newException.product_name || '*',
+        binary_name: newException.binary_name || '*',
+        version: newException.version || '*',
+      }
+    } else if (newException.type === 'FileHashCondition') {
+      if (!newException.file_hash) {
+        alert('Please enter a file hash')
+        return
+      }
+      exceptionObj = {
+        type: 'FileHashCondition',
+        file_hash: newException.file_hash,
+        hash_type: newException.hash_type || 'SHA256',
+        source_file_name: newException.source_file_name || '',
+        source_file_length: newException.source_file_length || null,
+      }
     }
     
     setFormData({
@@ -322,6 +357,14 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     setNewException({
       type: 'FilePathCondition',
       path: '',
+      publisher_name: '',
+      product_name: '',
+      binary_name: '',
+      version: '',
+      file_hash: '',
+      hash_type: 'SHA256',
+      source_file_name: '',
+      source_file_length: '',
     })
     setPathSuggestion({ original: '', suggested: '', type: null })
   }
@@ -637,18 +680,30 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
               </Typography>
               {formData.exceptions.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  No exceptions. Exceptions exclude paths from the rule conditions.
+                  No exceptions. Exceptions exclude paths, publishers, or hashes from the rule conditions.
                 </Typography>
               ) : (
-                formData.exceptions.map((exception, index) => (
-                  <Chip
-                    key={index}
-                    label={`Exception: ${exception.path}`}
-                    onDelete={() => handleRemoveException(index)}
-                    sx={{ m: 0.5 }}
-                    color="warning"
-                  />
-                ))
+                formData.exceptions.map((exception, index) => {
+                  let label = ''
+                  if (exception.type === 'FilePathCondition') {
+                    label = `Path: ${exception.path}`
+                  } else if (exception.type === 'FilePublisherCondition') {
+                    label = `Publisher: ${exception.publisher_name}${exception.product_name !== '*' ? ` / ${exception.product_name}` : ''}${exception.binary_name !== '*' ? ` / ${exception.binary_name}` : ''}`
+                  } else if (exception.type === 'FileHashCondition') {
+                    label = `Hash: ${exception.file_hash.substring(0, 16)}... (${exception.hash_type})`
+                  } else {
+                    label = `Exception ${index + 1}`
+                  }
+                  return (
+                    <Chip
+                      key={index}
+                      label={label}
+                      onDelete={() => handleRemoveException(index)}
+                      sx={{ m: 0.5 }}
+                      color="warning"
+                    />
+                  )
+                })
               )}
             </Grid>
 
@@ -660,39 +715,139 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                 <AccordionDetails>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <Typography variant="body2" color="text.secondary">
-                      Exceptions exclude specific paths from the rule. Only FilePathCondition exceptions are supported.
+                      Exceptions exclude specific paths, publishers, or file hashes from the rule conditions.
                     </Typography>
-                    <TextField
-                      fullWidth
-                      label="Exception Path"
-                      value={newException.path}
-                      onChange={handleExceptionFieldChange('path')}
-                      placeholder="%SYSTEM32%\\Tasks\\* or C:\\Temp\\*"
-                      helperText="Path to exclude from the rule conditions"
-                    />
-                    {pathSuggestion.type === 'exception' && pathSuggestion.original === newException.path && (
-                      <Alert 
-                        severity="info" 
-                        action={
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Button size="small" onClick={handleAcceptSuggestion}>
-                              Use {pathSuggestion.suggested}
-                            </Button>
-                            <Button size="small" onClick={handleDismissSuggestion}>
-                              Keep original
-                            </Button>
-                          </Box>
-                        }
-                        sx={{ mt: 1 }}
+                    <FormControl fullWidth>
+                      <InputLabel>Exception Type</InputLabel>
+                      <Select
+                        value={newException.type}
+                        onChange={(e) => setNewException({ ...newException, type: e.target.value })}
+                        label="Exception Type"
                       >
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>
-                          Trying to add: <code>{pathSuggestion.original}</code>
-                        </Typography>
-                        <Typography variant="body2">
-                          Want to make it: <code style={{ fontWeight: 'bold' }}>{pathSuggestion.suggested}</code>?
-                        </Typography>
-                      </Alert>
+                        <MenuItem value="FilePathCondition">File Path</MenuItem>
+                        <MenuItem value="FilePublisherCondition">File Publisher</MenuItem>
+                        <MenuItem value="FileHashCondition">File Hash</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {newException.type === 'FilePathCondition' && (
+                      <>
+                        <TextField
+                          fullWidth
+                          label="Exception Path"
+                          value={newException.path}
+                          onChange={handleExceptionFieldChange('path')}
+                          placeholder="%SYSTEM32%\\Tasks\\* or C:\\Temp\\*"
+                          helperText="Path to exclude from the rule conditions"
+                        />
+                        {pathSuggestion.type === 'exception' && pathSuggestion.original === newException.path && (
+                          <Alert 
+                            severity="info" 
+                            action={
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Button size="small" onClick={handleAcceptSuggestion}>
+                                  Use {pathSuggestion.suggested}
+                                </Button>
+                                <Button size="small" onClick={handleDismissSuggestion}>
+                                  Keep original
+                                </Button>
+                              </Box>
+                            }
+                            sx={{ mt: 1 }}
+                          >
+                            <Typography variant="body2" sx={{ mb: 0.5 }}>
+                              Trying to add: <code>{pathSuggestion.original}</code>
+                            </Typography>
+                            <Typography variant="body2">
+                              Want to make it: <code style={{ fontWeight: 'bold' }}>{pathSuggestion.suggested}</code>?
+                            </Typography>
+                          </Alert>
+                        )}
+                      </>
                     )}
+
+                    {newException.type === 'FilePublisherCondition' && (
+                      <>
+                        <TextField
+                          fullWidth
+                          label="Publisher Name"
+                          value={newException.publisher_name}
+                          onChange={handleExceptionFieldChange('publisher_name')}
+                          placeholder="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US"
+                          helperText="Publisher name (required)"
+                          required
+                        />
+                        <TextField
+                          fullWidth
+                          label="Product Name"
+                          value={newException.product_name}
+                          onChange={handleExceptionFieldChange('product_name')}
+                          placeholder="MICROSOFT® WINDOWS® OPERATING SYSTEM"
+                          helperText="Product name (use * for any)"
+                        />
+                        <TextField
+                          fullWidth
+                          label="Binary Name"
+                          value={newException.binary_name}
+                          onChange={handleExceptionFieldChange('binary_name')}
+                          placeholder="SENSECNCPROXY.EXE"
+                          helperText="Binary name (use * for any)"
+                        />
+                        <TextField
+                          fullWidth
+                          label="Version Range"
+                          value={newException.version}
+                          onChange={handleExceptionFieldChange('version')}
+                          placeholder="10.8040.0.0-* or 10.8040.0.0"
+                          helperText="Version range (e.g., '10.0.0.0-*' or single version, use * for any)"
+                        />
+                      </>
+                    )}
+
+                    {newException.type === 'FileHashCondition' && (
+                      <>
+                        <FormControl fullWidth>
+                          <InputLabel>Hash Type</InputLabel>
+                          <Select
+                            value={newException.hash_type}
+                            onChange={(e) => setNewException({ ...newException, hash_type: e.target.value })}
+                            label="Hash Type"
+                          >
+                            <MenuItem value="SHA256">SHA256</MenuItem>
+                            <MenuItem value="SHA512">SHA512</MenuItem>
+                            <MenuItem value="SHA1">SHA1</MenuItem>
+                            <MenuItem value="MD5">MD5</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <TextField
+                          fullWidth
+                          label="File Hash"
+                          value={newException.file_hash}
+                          onChange={handleExceptionFieldChange('file_hash')}
+                          placeholder="E4BF8DA2B31F81D58CDAEEA94C527D4FAC2A3255D2D4DA91BDA7B6C89F68A09B"
+                          helperText="File hash value (without 0x prefix)"
+                          required
+                        />
+                        <TextField
+                          fullWidth
+                          label="Source File Name"
+                          value={newException.source_file_name}
+                          onChange={handleExceptionFieldChange('source_file_name')}
+                          placeholder="ielowutil.exe"
+                          helperText="Original file name (optional)"
+                        />
+                        <TextField
+                          fullWidth
+                          label="Source File Length"
+                          value={newException.source_file_length}
+                          onChange={handleExceptionFieldChange('source_file_length')}
+                          placeholder="241664"
+                          helperText="File size in bytes (optional)"
+                          type="number"
+                        />
+                      </>
+                    )}
+
                     <Button
                       variant="outlined"
                       startIcon={<AddIcon />}
