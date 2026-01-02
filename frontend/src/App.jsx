@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import {
   Container,
   AppBar,
@@ -26,12 +27,14 @@ import {
   ArrowDropDown as ArrowDropDownIcon,
   ContentCopy as ContentCopyIcon,
   Delete as DeleteIcon,
+  MenuBook as MenuBookIcon,
 } from '@mui/icons-material'
 import RuleList from './components/RuleList'
 import RuleForm from './components/RuleForm'
+import Docs from './components/Docs'
 import { getRules, exportXML, importXML, importDefaultRules, exportCollectionXML, deleteAllRules } from './services/api'
 
-function App() {
+function PolicyCreator() {
   const [rules, setRules] = useState([])
   const [selectedTab, setSelectedTab] = useState(0)
   const [openForm, setOpenForm] = useState(false)
@@ -84,21 +87,17 @@ function App() {
       let filename
       
       if (collectionType) {
-        // Export specific collection
         xml = await exportCollectionXML(collectionType)
         filename = `AppLocker_${collectionType}.xml`
       } else {
-        // Export all rules
         xml = await exportXML(rules)
         filename = 'AppLockerPolicy.xml'
       }
       
       if (asText) {
-        // Show in dialog for copying
         setExportXmlText(xml)
         setOpenExportDialog(true)
       } else {
-        // Download as file
         const blob = new Blob([xml], { type: 'application/xml' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -145,7 +144,7 @@ function App() {
       }
     }
     reader.readAsText(file)
-    event.target.value = '' // Reset input
+    event.target.value = ''
   }
 
   const handleImportFromText = () => {
@@ -182,14 +181,13 @@ function App() {
 
   const handleImportDefaults = async () => {
     try {
-      // Determine collection type based on selected tab
       const collectionMap = {
-        0: null,      // All Rules - import all defaults
-        1: 'Exe',      // Executables
-        2: 'Script',   // Scripts
-        3: 'Dll',      // DLLs
-        4: 'Msi',      // Windows Installer
-        5: 'Appx',     // Packaged Apps
+        0: null,
+        1: 'Exe',
+        2: 'Script',
+        3: 'Dll',
+        4: 'Msi',
+        5: 'Appx',
       }
       
       const collectionType = collectionMap[selectedTab]
@@ -264,7 +262,7 @@ function App() {
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" component={Link} to="/" sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}>
             AppLocker Policy Creator
           </Typography>
           <input
@@ -376,8 +374,17 @@ function App() {
             variant="outlined"
             startIcon={<AddIcon />}
             onClick={handleAddRule}
+            sx={{ mr: 1 }}
           >
             Add Rule
+          </Button>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/docs"
+            startIcon={<MenuBookIcon />}
+          >
+            Docs
           </Button>
         </Toolbar>
       </AppBar>
@@ -521,5 +528,51 @@ function App() {
   )
 }
 
-export default App
+function DocsPage() {
+  const location = useLocation()
+  
+  return (
+    <Box sx={{ flexGrow: 1 }}>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component={Link} to="/" sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}>
+            AppLocker Policy Creator
+          </Typography>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/"
+            sx={{ mr: 1 }}
+          >
+            Policy Creator
+          </Button>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/docs"
+            startIcon={<MenuBookIcon />}
+            sx={{
+              backgroundColor: location.pathname === '/docs' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            }}
+          >
+            Documentation
+          </Button>
+        </Toolbar>
+      </AppBar>
+      <Docs />
+    </Box>
+  )
+}
 
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<PolicyCreator />} />
+        <Route path="/docs" element={<DocsPage />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
+export default App
