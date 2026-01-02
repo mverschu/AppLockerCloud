@@ -136,7 +136,7 @@ else {
         Both methods described below work without requiring administrator privileges, making them suitable for end users.
       </Alert>
 
-      <Accordion defaultExpanded>
+      <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Stack direction="row" spacing={2} alignItems="center">
             <CloudIcon color="primary" />

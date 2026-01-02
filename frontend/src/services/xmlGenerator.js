@@ -135,16 +135,38 @@ function createRule(rule, doc) {
         excElem.setAttribute('BinaryName', exception.binary_name || '*')
         
         // Add BinaryVersionRange if version is specified
-        if (exception.version && exception.version !== '*') {
-          const versionRange = doc.createElement('BinaryVersionRange')
+        let lowSection = '*'
+        let highSection = '*'
+        
+        // Handle version_range_type if present (new format)
+        if (exception.version_range_type) {
+          if (exception.version_range_type === 'and_above' && exception.version_value) {
+            lowSection = exception.version_value
+            highSection = '*'
+          } else if (exception.version_range_type === 'and_below' && exception.version_value) {
+            lowSection = '*'
+            highSection = exception.version_value
+          } else if (exception.version_range_type === 'exactly' && exception.version_value) {
+            lowSection = exception.version_value
+            highSection = exception.version_value
+          }
+          // If version_range_type is 'any' or not recognized, leave as */*
+        } else if (exception.version && exception.version !== '*') {
+          // Legacy format: parse version string
           if (exception.version.includes('-')) {
             const [low, high] = exception.version.split('-')
-            versionRange.setAttribute('LowSection', low || '*')
-            versionRange.setAttribute('HighSection', high || '*')
+            lowSection = low || '*'
+            highSection = high || '*'
           } else {
-            versionRange.setAttribute('LowSection', exception.version)
-            versionRange.setAttribute('HighSection', exception.version)
+            lowSection = exception.version
+            highSection = exception.version
           }
+        }
+        
+        if (lowSection !== '*' || highSection !== '*') {
+          const versionRange = doc.createElement('BinaryVersionRange')
+          versionRange.setAttribute('LowSection', lowSection)
+          versionRange.setAttribute('HighSection', highSection)
           excElem.appendChild(versionRange)
         }
         
@@ -249,13 +271,45 @@ function createPublisherCondition(condition, doc) {
   let lowSection = '*'
   let highSection = '*'
   
-  if (typeof version === 'string' && version.includes('-')) {
-    const parts = version.split('-', 2)
-    lowSection = parts[0] || '*'
-    highSection = parts[1] || '*'
+  // Handle version_range_type if present (new format)
+  if (condition.version_range_type) {
+    if (condition.version_range_type === 'and_above' && condition.version_value) {
+      lowSection = condition.version_value
+      highSection = '*'
+    } else if (condition.version_range_type === 'and_below' && condition.version_value) {
+      lowSection = '*'
+      highSection = condition.version_value
+    } else if (condition.version_range_type === 'exactly' && condition.version_value) {
+      lowSection = condition.version_value
+      highSection = condition.version_value
+    }
+    // If version_range_type is 'any' or not recognized, leave as */*
   } else {
-    lowSection = version !== '*' ? version : '*'
-    highSection = version !== '*' ? version : '*'
+    // Legacy format: try to detect type from version string
+    if (typeof version === 'string' && version.includes('-')) {
+      const parts = version.split('-', 2)
+      const low = parts[0] || '*'
+      const high = parts[1] || '*'
+      // Try to detect the type
+      if (low !== '*' && high === '*') {
+        lowSection = low
+        highSection = '*'
+      } else if (low === '*' && high !== '*') {
+        lowSection = '*'
+        highSection = high
+      } else if (low === high && low !== '*') {
+        lowSection = low
+        highSection = low
+      } else {
+        // Unknown format, default to any
+        lowSection = '*'
+        highSection = '*'
+      }
+    } else if (version !== '*') {
+      // Single version - treat as exactly
+      lowSection = version
+      highSection = version
+    }
   }
   
   const binaryVersionRange = doc.createElement('BinaryVersionRange')
@@ -455,9 +509,34 @@ function parseRuleElement(ruleElem, collectionType) {
     if (versionElem) {
       const lowSection = versionElem.getAttribute('LowSection') || '*'
       const highSection = versionElem.getAttribute('HighSection') || '*'
-      condition.version = lowSection === highSection ? lowSection : `${lowSection}-${highSection}`
+      
+      // Detect version range type
+      if (lowSection === '*' && highSection === '*') {
+        condition.version_range_type = 'any'
+        condition.version = '*'
+        condition.version_value = ''
+      } else if (lowSection !== '*' && highSection === '*') {
+        condition.version_range_type = 'and_above'
+        condition.version = `${lowSection}-*`
+        condition.version_value = lowSection
+      } else if (lowSection === '*' && highSection !== '*') {
+        condition.version_range_type = 'and_below'
+        condition.version = `*-${highSection}`
+        condition.version_value = highSection
+      } else if (lowSection === highSection) {
+        condition.version_range_type = 'exactly'
+        condition.version = lowSection
+        condition.version_value = lowSection
+      } else {
+        // Unknown range format - default to any
+        condition.version_range_type = 'any'
+        condition.version = '*'
+        condition.version_value = ''
+      }
     } else {
+      condition.version_range_type = 'any'
       condition.version = '*'
+      condition.version_value = ''
     }
     
     conditions.push(condition)
@@ -515,9 +594,34 @@ function parseRuleElement(ruleElem, collectionType) {
       if (versionElem) {
         const lowSection = versionElem.getAttribute('LowSection') || '*'
         const highSection = versionElem.getAttribute('HighSection') || '*'
-        exception.version = lowSection === highSection ? lowSection : `${lowSection}-${highSection}`
+        
+        // Detect version range type
+        if (lowSection === '*' && highSection === '*') {
+          exception.version_range_type = 'any'
+          exception.version = '*'
+          exception.version_value = ''
+        } else if (lowSection !== '*' && highSection === '*') {
+          exception.version_range_type = 'and_above'
+          exception.version = `${lowSection}-*`
+          exception.version_value = lowSection
+        } else if (lowSection === '*' && highSection !== '*') {
+          exception.version_range_type = 'and_below'
+          exception.version = `*-${highSection}`
+          exception.version_value = highSection
+        } else if (lowSection === highSection) {
+          exception.version_range_type = 'exactly'
+          exception.version = lowSection
+          exception.version_value = lowSection
+        } else {
+          // Unknown range format - default to any
+          exception.version_range_type = 'any'
+          exception.version = '*'
+          exception.version_value = ''
+        }
       } else {
+        exception.version_range_type = 'any'
         exception.version = '*'
+        exception.version_value = ''
       }
       
       exceptions.push(exception)

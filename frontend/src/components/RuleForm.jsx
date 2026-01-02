@@ -25,6 +25,8 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
+  Info as InfoIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material'
 import { createRule, updateRule, getCollections } from '../services/api'
 
@@ -110,6 +112,8 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     publisher_name: '',
     product_name: '',
     binary_name: '',
+    version_range_type: 'any',
+    version_value: '',
     version: '',
     file_hash: '',
     source_file_name: '',
@@ -120,6 +124,8 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     publisher_name: '',
     product_name: '',
     binary_name: '',
+    version_range_type: 'any',
+    version_value: '',
     version: '',
     file_hash: '',
     hash_type: 'SHA256',
@@ -127,6 +133,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     source_file_length: '',
   })
   const [pathSuggestion, setPathSuggestion] = useState({ original: '', suggested: '', type: null }) // type: 'condition' or 'exception'
+  const [exceptionDetailDialog, setExceptionDetailDialog] = useState({ open: false, exception: null, index: null })
 
   useEffect(() => {
     loadCollections()
@@ -235,12 +242,24 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
         alert('Please enter a publisher name')
         return
       }
+      // Build version based on version_range_type
+      let version = '*'
+      if (condition.version_range_type === 'and_above' && condition.version_value) {
+        version = `${condition.version_value}-*`
+      } else if (condition.version_range_type === 'and_below' && condition.version_value) {
+        version = `*-${condition.version_value}`
+      } else if (condition.version_range_type === 'exactly' && condition.version_value) {
+        version = condition.version_value
+      }
+      
       newConditionObj = {
         type: 'FilePublisherCondition',
         publisher_name: condition.publisher_name,
         product_name: condition.product_name || null,
         binary_name: condition.binary_name || null,
-        version: condition.version || '*',
+        version: version,
+        version_range_type: condition.version_range_type || 'any',
+        version_value: condition.version_value || '',
       }
     } else if (condition.type === 'FileHashCondition') {
       if (!condition.file_hash || !condition.source_file_name) {
@@ -268,6 +287,8 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
       publisher_name: '',
       product_name: '',
       binary_name: '',
+      version_range_type: 'any',
+      version_value: '',
       version: '',
       file_hash: '',
       source_file_name: '',
@@ -328,12 +349,24 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
         alert('Please enter a publisher name')
         return
       }
+      // Build version based on version_range_type
+      let version = '*'
+      if (newException.version_range_type === 'and_above' && newException.version_value) {
+        version = `${newException.version_value}-*`
+      } else if (newException.version_range_type === 'and_below' && newException.version_value) {
+        version = `*-${newException.version_value}`
+      } else if (newException.version_range_type === 'exactly' && newException.version_value) {
+        version = newException.version_value
+      }
+      
       exceptionObj = {
         type: 'FilePublisherCondition',
         publisher_name: newException.publisher_name || '*',
         product_name: newException.product_name || '*',
         binary_name: newException.binary_name || '*',
-        version: newException.version || '*',
+        version: version,
+        version_range_type: newException.version_range_type || 'any',
+        version_value: newException.version_value || '',
       }
     } else if (newException.type === 'FileHashCondition') {
       if (!newException.file_hash) {
@@ -360,6 +393,8 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
       publisher_name: '',
       product_name: '',
       binary_name: '',
+      version_range_type: 'any',
+      version_value: '',
       version: '',
       file_hash: '',
       hash_type: 'SHA256',
@@ -492,6 +527,17 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                         </Box>
                       )
                     } else if (condition.type === 'FilePublisherCondition') {
+                      let versionInfo = 'Any Version'
+                      if (condition.version_range_type === 'and_above' && condition.version_value) {
+                        versionInfo = `Version ${condition.version_value} and above`
+                      } else if (condition.version_range_type === 'and_below' && condition.version_value) {
+                        versionInfo = `Version ${condition.version_value} and below`
+                      } else if (condition.version_range_type === 'exactly' && condition.version_value) {
+                        versionInfo = `Exactly version ${condition.version_value}`
+                      } else if (condition.version && condition.version !== '*') {
+                        versionInfo = `Version: ${condition.version}`
+                      }
+                      
                       return (
                         <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                           <Box sx={{ flex: 1 }}>
@@ -504,6 +550,9 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                                 Product: {condition.product_name || '*'}, Binary: {condition.binary_name || '*'}
                               </Typography>
                             )}
+                            <Typography variant="caption" color="text.secondary">
+                              {versionInfo}
+                            </Typography>
                           </Box>
                           <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
                             <DeleteIcon />
@@ -630,13 +679,34 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                           onChange={handleConditionFieldChange('binary_name')}
                           placeholder="*"
                         />
-                        <TextField
-                          fullWidth
-                          label="Version (optional)"
-                          value={newCondition.version}
-                          onChange={handleConditionFieldChange('version')}
-                          placeholder="*"
-                        />
+                        <FormControl fullWidth>
+                          <InputLabel>Version Range Type</InputLabel>
+                          <Select
+                            value={newCondition.version_range_type}
+                            onChange={(e) => setNewCondition({ ...newCondition, version_range_type: e.target.value })}
+                            label="Version Range Type"
+                          >
+                            <MenuItem value="any">Any Version</MenuItem>
+                            <MenuItem value="and_above">And Above</MenuItem>
+                            <MenuItem value="and_below">And Below</MenuItem>
+                            <MenuItem value="exactly">Exactly</MenuItem>
+                          </Select>
+                        </FormControl>
+                        {newCondition.version_range_type !== 'any' && (
+                          <TextField
+                            fullWidth
+                            label="Version"
+                            value={newCondition.version_value}
+                            onChange={handleConditionFieldChange('version_value')}
+                            placeholder="10.840.20348.587"
+                            helperText={
+                              newCondition.version_range_type === 'and_above' ? 'Minimum version (and above)' :
+                              newCondition.version_range_type === 'and_below' ? 'Maximum version (and below)' :
+                              'Exact version'
+                            }
+                            required
+                          />
+                        )}
                       </>
                     )}
 
@@ -688,7 +758,10 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                   if (exception.type === 'FilePathCondition') {
                     label = `Path: ${exception.path}`
                   } else if (exception.type === 'FilePublisherCondition') {
-                    label = `Publisher: ${exception.publisher_name}${exception.product_name !== '*' ? ` / ${exception.product_name}` : ''}${exception.binary_name !== '*' ? ` / ${exception.binary_name}` : ''}`
+                    // Truncate publisher name if too long
+                    const pubName = exception.publisher_name || ''
+                    const displayName = pubName.length > 40 ? pubName.substring(0, 40) + '...' : pubName
+                    label = `Publisher: ${displayName}`
                   } else if (exception.type === 'FileHashCondition') {
                     label = `Hash: ${exception.file_hash.substring(0, 16)}... (${exception.hash_type})`
                   } else {
@@ -698,8 +771,13 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                     <Chip
                       key={index}
                       label={label}
-                      onDelete={() => handleRemoveException(index)}
-                      sx={{ m: 0.5 }}
+                      onDelete={(e) => {
+                        e.stopPropagation()
+                        handleRemoveException(index)
+                      }}
+                      onClick={() => setExceptionDetailDialog({ open: true, exception, index })}
+                      icon={exception.type === 'FilePublisherCondition' ? <VisibilityIcon /> : undefined}
+                      sx={{ m: 0.5, cursor: 'pointer' }}
                       color="warning"
                     />
                   )
@@ -793,14 +871,34 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                           placeholder="SENSECNCPROXY.EXE"
                           helperText="Binary name (use * for any)"
                         />
-                        <TextField
-                          fullWidth
-                          label="Version Range"
-                          value={newException.version}
-                          onChange={handleExceptionFieldChange('version')}
-                          placeholder="10.8040.0.0-* or 10.8040.0.0"
-                          helperText="Version range (e.g., '10.0.0.0-*' or single version, use * for any)"
-                        />
+                        <FormControl fullWidth>
+                          <InputLabel>Version Range Type</InputLabel>
+                          <Select
+                            value={newException.version_range_type}
+                            onChange={(e) => setNewException({ ...newException, version_range_type: e.target.value })}
+                            label="Version Range Type"
+                          >
+                            <MenuItem value="any">Any Version</MenuItem>
+                            <MenuItem value="and_above">And Above</MenuItem>
+                            <MenuItem value="and_below">And Below</MenuItem>
+                            <MenuItem value="exactly">Exactly</MenuItem>
+                          </Select>
+                        </FormControl>
+                        {newException.version_range_type !== 'any' && (
+                          <TextField
+                            fullWidth
+                            label="Version"
+                            value={newException.version_value}
+                            onChange={handleExceptionFieldChange('version_value')}
+                            placeholder="10.840.20348.587"
+                            helperText={
+                              newException.version_range_type === 'and_above' ? 'Minimum version (and above)' :
+                              newException.version_range_type === 'and_below' ? 'Maximum version (and below)' :
+                              'Exact version'
+                            }
+                            required
+                          />
+                        )}
                       </>
                     )}
 
@@ -868,6 +966,130 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
           {rule ? 'Update' : 'Create'}
         </Button>
       </DialogActions>
+
+      {/* Exception Detail Dialog */}
+      <Dialog
+        open={exceptionDetailDialog.open}
+        onClose={() => setExceptionDetailDialog({ open: false, exception: null, index: null })}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Exception Details</DialogTitle>
+        <DialogContent>
+          {exceptionDetailDialog.exception && (
+            <Box sx={{ mt: 2 }}>
+              {exceptionDetailDialog.exception.type === 'FilePathCondition' && (
+                <>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Exception Type
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    File Path Condition
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Path
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace', mb: 2, wordBreak: 'break-all' }}>
+                    {exceptionDetailDialog.exception.path || 'N/A'}
+                  </Typography>
+                </>
+              )}
+
+              {exceptionDetailDialog.exception.type === 'FilePublisherCondition' && (
+                <>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Exception Type
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    File Publisher Condition
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Publisher Name
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace', mb: 2, wordBreak: 'break-all' }}>
+                    {exceptionDetailDialog.exception.publisher_name || 'N/A'}
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Product Name
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2, wordBreak: 'break-all' }}>
+                    {exceptionDetailDialog.exception.product_name || '*'}
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Binary Name
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2, wordBreak: 'break-all' }}>
+                    {exceptionDetailDialog.exception.binary_name || '*'}
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Version Range
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    {(() => {
+                      const exc = exceptionDetailDialog.exception
+                      if (exc.version_range_type === 'and_above' && exc.version_value) {
+                        return `And Above: ${exc.version_value}`
+                      } else if (exc.version_range_type === 'and_below' && exc.version_value) {
+                        return `And Below: ${exc.version_value}`
+                      } else if (exc.version_range_type === 'exactly' && exc.version_value) {
+                        return `Exactly: ${exc.version_value}`
+                      } else if (exc.version && exc.version !== '*') {
+                        return `Version: ${exc.version}`
+                      } else {
+                        return 'Any Version'
+                      }
+                    })()}
+                  </Typography>
+                </>
+              )}
+
+              {exceptionDetailDialog.exception.type === 'FileHashCondition' && (
+                <>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Exception Type
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    File Hash Condition
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Hash Type
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    {exceptionDetailDialog.exception.hash_type || 'SHA256'}
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    File Hash
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace', mb: 2, wordBreak: 'break-all' }}>
+                    {exceptionDetailDialog.exception.file_hash || 'N/A'}
+                  </Typography>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Source File Name
+                  </Typography>
+                  <Typography variant="body1" sx={{ mb: 2, wordBreak: 'break-all' }}>
+                    {exceptionDetailDialog.exception.source_file_name || 'N/A'}
+                  </Typography>
+                  {exceptionDetailDialog.exception.source_file_length && (
+                    <>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                        Source File Length
+                      </Typography>
+                      <Typography variant="body1" sx={{ mb: 2 }}>
+                        {exceptionDetailDialog.exception.source_file_length} bytes
+                      </Typography>
+                    </>
+                  )}
+                </>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExceptionDetailDialog({ open: false, exception: null, index: null })}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   )
 }
