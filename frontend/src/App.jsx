@@ -30,10 +30,12 @@ import {
   MenuBook as MenuBookIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material'
 import RuleList from './components/RuleList'
 import RuleForm from './components/RuleForm'
 import Docs from './components/Docs'
+import PolicyHardening from './components/PolicyHardening'
 import { useThemeMode } from './theme/ThemeProvider'
 import { getRules, exportXML, importXML, importDefaultRules, exportCollectionXML, deleteAllRules } from './services/api'
 
@@ -393,6 +395,15 @@ function PolicyCreator() {
           </Button>
           <Button
             color="inherit"
+            component={Link}
+            to="/hardening"
+            startIcon={<SecurityIcon />}
+            sx={{ mr: 1 }}
+          >
+            Hardening
+          </Button>
+          <Button
+            color="inherit"
             onClick={toggleColorMode}
             startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
             title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -574,6 +585,18 @@ function DocsPage() {
           </Button>
           <Button
             color="inherit"
+            component={Link}
+            to="/hardening"
+            startIcon={<SecurityIcon />}
+            sx={{
+              backgroundColor: location.pathname === '/hardening' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+              mr: 1,
+            }}
+          >
+            Hardening
+          </Button>
+          <Button
+            color="inherit"
             onClick={toggleColorMode}
             startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
             title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -587,12 +610,68 @@ function DocsPage() {
   )
 }
 
+function HardeningPage() {
+  const location = useLocation()
+  const { mode, toggleColorMode } = useThemeMode()
+  
+  return (
+    <Box sx={{ flexGrow: 1 }}>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component={Link} to="/" sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}>
+            AppLocker Policy Creator
+          </Typography>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/"
+            sx={{ mr: 1 }}
+          >
+            Policy Creator
+          </Button>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/docs"
+            startIcon={<MenuBookIcon />}
+            sx={{ mr: 1 }}
+          >
+            Documentation
+          </Button>
+          <Button
+            color="inherit"
+            component={Link}
+            to="/hardening"
+            startIcon={<SecurityIcon />}
+            sx={{
+              backgroundColor: location.pathname === '/hardening' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+              mr: 1,
+            }}
+          >
+            Hardening
+          </Button>
+          <Button
+            color="inherit"
+            onClick={toggleColorMode}
+            startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {mode === 'dark' ? 'Light' : 'Dark'}
+          </Button>
+        </Toolbar>
+      </AppBar>
+      <PolicyHardening />
+    </Box>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<PolicyCreator />} />
         <Route path="/docs" element={<DocsPage />} />
+        <Route path="/hardening" element={<HardeningPage />} />
       </Routes>
     </BrowserRouter>
   )
