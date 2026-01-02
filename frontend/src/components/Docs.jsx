@@ -213,12 +213,12 @@ else {
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography component="code" sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                .\\Get-IntuneAppLocker.ps1
+                .\Get-IntuneAppLocker.ps1
               </Typography>
               <Button
                 size="small"
                 startIcon={<ContentCopyIcon />}
-                onClick={() => handleCopy('.\\Get-IntuneAppLocker.ps1', 'run')}
+                onClick={() => handleCopy('.\Get-IntuneAppLocker.ps1', 'run')}
                 variant="outlined"
               >
                 {copiedText === 'run' ? 'Copied!' : 'Copy'}
@@ -240,12 +240,12 @@ else {
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography component="code" sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                .\\Get-IntuneAppLocker.ps1 -Xml | Out-File -FilePath AppLockerPolicy.xml -Encoding UTF8
+                .\Get-IntuneAppLocker.ps1 -Xml | Out-File -FilePath AppLockerPolicy.xml -Encoding UTF8
               </Typography>
               <Button
                 size="small"
                 startIcon={<ContentCopyIcon />}
-                onClick={() => handleCopy('.\\Get-IntuneAppLocker.ps1 -Xml | Out-File -FilePath AppLockerPolicy.xml -Encoding UTF8', 'export')}
+                onClick={() => handleCopy('.\Get-IntuneAppLocker.ps1 -Xml | Out-File -FilePath AppLockerPolicy.xml -Encoding UTF8', 'export')}
                 variant="outlined"
               >
                 {copiedText === 'export' ? 'Copied!' : 'Copy'}
