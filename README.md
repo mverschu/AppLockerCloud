@@ -8,27 +8,37 @@ A web-based tool for creating and managing Windows AppLocker policies. Create ap
 
 ## Requirements
 
-- **Python 3.8+** - Required for the backend API
 - **Node.js 16+** and **npm** - Required for the frontend
-- **Bash** - Required to run the startup script
 
 ## Quick Start
 
-1. Make sure you have Python 3.8+, Node.js 16+, and npm installed
-2. Run the startup script:
+1. Make sure you have Node.js 16+ and npm installed
+2. Navigate to the frontend directory:
    ```bash
-   ./start.sh
+   cd frontend
+   ```
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+4. Start the development server:
+   ```bash
+   npm run dev
    ```
 
-The script will automatically:
-- Create a Python virtual environment (if needed)
-- Install backend dependencies
-- Install frontend dependencies
-- Start both the backend API (http://localhost:8080) and frontend web app (http://localhost:3000)
+The application will start at **http://localhost:3000** and runs entirely in your browser. All data is stored locally using browser localStorage - no backend server required!
 
-3. Open your browser and navigate to **http://localhost:3000**
+5. Press `Ctrl+C` to stop the development server when done
 
-4. Press `Ctrl+C` to stop all services when done
+## Building for Production
+
+To build a production version:
+```bash
+cd frontend
+npm run build
+```
+
+The built files will be in the `frontend/dist` directory and can be served by any static web server.
 
 ## What It Does
 
