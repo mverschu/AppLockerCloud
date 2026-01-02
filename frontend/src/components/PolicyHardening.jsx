@@ -140,29 +140,117 @@ const pathMatchesException = (foundPath, exceptionPath) => {
   return false
 }
 
+// Collection types that need protection
+const COLLECTION_TYPES = ['Exe', 'Script', 'Dll', 'Msi', 'Appx']
+
+// Check if a path would be allowed by a rule (parent directory match)
+const pathWouldBeAllowedByRule = (path, rulePath) => {
+  if (!path || !rulePath) return false
+  
+  // Expand environment variables in rule path
+  let expandedRule = rulePath
+    .replace(/%WINDIR%/gi, 'C:\\Windows')
+    .replace(/%SYSTEM32%/gi, 'C:\\Windows\\System32')
+    .replace(/%PROGRAMFILES%/gi, 'C:\\Program Files')
+    .replace(/%PROGRAMFILES\(X86\)%/gi, 'C:\\Program Files (x86)')
+    .replace(/%PROGRAMDATA%/gi, 'C:\\ProgramData')
+    .replace(/%OSDRIVE%/gi, 'C:')
+  
+  // Normalize paths
+  const pathNorm = path.replace(/\\/g, '/').toLowerCase()
+  let ruleNorm = expandedRule.replace(/\\/g, '/').toLowerCase()
+  
+  // Remove trailing wildcards
+  ruleNorm = ruleNorm.replace(/\/\*$/, '').replace(/\*$/, '')
+  
+  // Check if path is within the rule path
+  // e.g., rule: C:\Windows\* matches path: C:\Windows\Tasks
+  if (pathNorm.startsWith(ruleNorm + '/') || pathNorm === ruleNorm) {
+    return true
+  }
+  
+  return false
+}
+
 // Check if a path is already covered by an exception in Allow rules
+// Returns protection status for each collection type
 const checkPathAgainstExceptions = (path, rules) => {
+  const protectionStatus = {
+    Exe: { isProtected: false, hasAllowRule: false, ruleName: null, exceptionPath: null, allowRuleName: null },
+    Script: { isProtected: false, hasAllowRule: false, ruleName: null, exceptionPath: null, allowRuleName: null },
+    Dll: { isProtected: false, hasAllowRule: false, ruleName: null, exceptionPath: null, allowRuleName: null },
+    Msi: { isProtected: false, hasAllowRule: false, ruleName: null, exceptionPath: null, allowRuleName: null },
+    Appx: { isProtected: false, hasAllowRule: false, ruleName: null, exceptionPath: null, allowRuleName: null },
+  }
+  
+  // First pass: identify which collection types have Allow rules that would allow this path
   for (const rule of rules) {
     // Only check Allow rules
     if (rule.action !== 'Allow') continue
     
-    // Check exceptions
-    if (rule.exceptions && Array.isArray(rule.exceptions)) {
-      for (const exception of rule.exceptions) {
-        if (exception.type === 'FilePathCondition' && exception.path) {
-          if (pathMatchesException(path, exception.path)) {
-            return {
-              isProtected: true,
-              ruleName: rule.name,
-              exceptionPath: exception.path,
-            }
+    // Get the collection type for this rule
+    const collectionType = rule.collection
+    if (!collectionType || !COLLECTION_TYPES.includes(collectionType)) continue
+    
+    // Check if this rule would allow the path (check conditions)
+    if (rule.conditions && Array.isArray(rule.conditions)) {
+      for (const condition of rule.conditions) {
+        if (condition.type === 'FilePathCondition' && condition.path) {
+          if (pathWouldBeAllowedByRule(path, condition.path)) {
+            // This rule would allow execution from this path
+            protectionStatus[collectionType].hasAllowRule = true
+            protectionStatus[collectionType].allowRuleName = rule.name
+            break
           }
         }
       }
     }
   }
   
-  return { isProtected: false }
+  // Second pass: check if there are exceptions that block this path
+  for (const rule of rules) {
+    // Only check Allow rules
+    if (rule.action !== 'Allow') continue
+    
+    // Get the collection type for this rule
+    const collectionType = rule.collection
+    if (!collectionType || !COLLECTION_TYPES.includes(collectionType)) continue
+    
+    // Only check exceptions if this rule would allow the path
+    if (!protectionStatus[collectionType].hasAllowRule) continue
+    
+    // Check exceptions for this collection type
+    if (rule.exceptions && Array.isArray(rule.exceptions)) {
+      for (const exception of rule.exceptions) {
+        if (exception.type === 'FilePathCondition' && exception.path) {
+          if (pathMatchesException(path, exception.path)) {
+            // Mark this collection type as protected (has exception blocking it)
+            protectionStatus[collectionType].isProtected = true
+            protectionStatus[collectionType].ruleName = rule.name
+            protectionStatus[collectionType].exceptionPath = exception.path
+            break
+          }
+        }
+      }
+    }
+  }
+  
+  // Calculate overall protection status
+  // Only consider collection types that have Allow rules (they need protection)
+  const typesWithAllowRules = COLLECTION_TYPES.filter(type => protectionStatus[type].hasAllowRule)
+  const protectedTypes = typesWithAllowRules.filter(type => protectionStatus[type].isProtected)
+  const unprotectedTypes = typesWithAllowRules.filter(type => !protectionStatus[type].isProtected)
+  const isFullyProtected = typesWithAllowRules.length > 0 && unprotectedTypes.length === 0
+  const isPartiallyProtected = protectedTypes.length > 0 && unprotectedTypes.length > 0
+  
+  return {
+    isProtected: isFullyProtected,
+    isPartiallyProtected,
+    protectionStatus,
+    protectedTypes,
+    unprotectedTypes,
+    typesWithAllowRules,
+  }
 }
 
 // Parse accesschk64.exe output
@@ -410,9 +498,23 @@ const PolicyHardening = () => {
                             </Typography>
                             {result.isProtected && (
                               <Chip 
-                                label="Protected by Exception" 
+                                label="Fully Protected" 
                                 size="small" 
                                 color="success"
+                              />
+                            )}
+                            {result.isPartiallyProtected && (
+                              <Chip 
+                                label="Partially Protected" 
+                                size="small" 
+                                color="warning"
+                              />
+                            )}
+                            {result.typesWithAllowRules && result.typesWithAllowRules.length > 0 && result.unprotectedTypes && result.unprotectedTypes.length > 0 && !result.isPartiallyProtected && (
+                              <Chip 
+                                label="Missing Exceptions" 
+                                size="small" 
+                                color="error"
                               />
                             )}
                           </Box>
@@ -421,44 +523,123 @@ const PolicyHardening = () => {
                           <Box sx={{ mt: 1 }}>
                             {result.isProtected ? (
                               <Alert severity="success" sx={{ mb: 1 }}>
-                                <AlertTitle>Already Protected</AlertTitle>
+                                <AlertTitle>Fully Protected</AlertTitle>
                                 <Typography variant="body2">
-                                  This path is already covered by an exception in the rule "{result.ruleName}". 
-                                  AppLocker will block execution from this path even though it's writable.
+                                  This path is protected by exceptions across all collection types (Exe, Script, DLL, MSI, Appx). 
+                                  AppLocker will block execution from this path for all file types.
                                 </Typography>
-                                <Typography variant="caption" component="div" sx={{ mt: 1, fontFamily: 'monospace' }}>
-                                  Exception path: {result.exceptionPath}
+                                {result.protectedTypes.length > 0 && (
+                                  <Box sx={{ mt: 1 }}>
+                                    <Typography variant="caption" component="div" sx={{ mb: 0.5 }}>
+                                      Protected for: {result.protectedTypes.join(', ')}
+                                    </Typography>
+                                    {result.protectionStatus[result.protectedTypes[0]]?.ruleName && (
+                                      <Typography variant="caption" component="div" sx={{ fontFamily: 'monospace' }}>
+                                        Rule: {result.protectionStatus[result.protectedTypes[0]].ruleName}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                )}
+                              </Alert>
+                            ) : result.isPartiallyProtected ? (
+                              <Alert severity="warning" sx={{ mb: 1 }}>
+                                <AlertTitle>Partially Protected - Security Gap</AlertTitle>
+                                <Typography variant="body2" sx={{ mb: 1 }}>
+                                  This path is protected for some collection types but not all. This creates a security gap.
                                 </Typography>
+                                <Box sx={{ mb: 1 }}>
+                                  <Typography variant="caption" component="div" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                                    Protected for: {result.protectedTypes.join(', ')}
+                                  </Typography>
+                                  {result.protectedTypes.map(type => {
+                                    const status = result.protectionStatus[type]
+                                    return status.isProtected ? (
+                                      <Typography key={type} variant="caption" component="div" sx={{ ml: 1, fontFamily: 'monospace' }}>
+                                        • {type}: {status.ruleName}
+                                      </Typography>
+                                    ) : null
+                                  })}
+                                </Box>
+                                <Box>
+                                  <Typography variant="caption" component="div" sx={{ fontWeight: 'bold', mb: 0.5, color: 'error.main' }}>
+                                    NOT Protected for: {result.unprotectedTypes.join(', ')}
+                                  </Typography>
+                                  {result.unprotectedTypes.map(type => {
+                                    const status = result.protectionStatus[type]
+                                    return status.hasAllowRule ? (
+                                      <Typography key={type} variant="caption" component="div" sx={{ ml: 1, fontFamily: 'monospace', color: 'error.main' }}>
+                                        • {type}: Allow rule "{status.allowRuleName}" would allow this path - needs exception!
+                                      </Typography>
+                                    ) : null
+                                  })}
+                                  <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
+                                    ⚠️ Attackers could execute {result.unprotectedTypes.join(', ').toLowerCase()} files from this path!
+                                  </Typography>
+                                  <Typography variant="caption" component="div" sx={{ mt: 1 }}>
+                                    Action required: Add exceptions for this path to the Allow rules listed above.
+                                  </Typography>
+                                </Box>
                               </Alert>
                             ) : (
                               <>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                  Check if this path allows execution:
-                                </Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <Paper
-                                    component="code"
-                                    sx={{
-                                      p: 1,
-                                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.100',
-                                      fontFamily: 'monospace',
-                                      fontSize: '0.875rem',
-                                    }}
-                                  >
-                                    icacls "{result.path}"
-                                  </Paper>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleCopyIcaclsCommand(result.path)}
-                                    title="Copy icacls command"
-                                  >
-                                    <ContentCopyIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                                  Look for execute permissions (RX, F, etc.) in the output. If found, consider adding 
-                                  an exception to your AppLocker policy to block execution from this path.
-                                </Typography>
+                                {result.typesWithAllowRules && result.typesWithAllowRules.length > 0 ? (
+                                  <Alert severity="error" sx={{ mb: 1 }}>
+                                    <AlertTitle>Security Gap - Missing Exceptions</AlertTitle>
+                                    <Typography variant="body2" sx={{ mb: 1 }}>
+                                      This path would be allowed by Allow rules but has no exceptions blocking it. 
+                                      This is a security gap that needs to be addressed.
+                                    </Typography>
+                                    <Box sx={{ mb: 1 }}>
+                                      <Typography variant="caption" component="div" sx={{ fontWeight: 'bold', mb: 0.5, color: 'error.main' }}>
+                                        Missing exceptions for: {result.unprotectedTypes.join(', ')}
+                                      </Typography>
+                                      {result.unprotectedTypes.map(type => {
+                                        const status = result.protectionStatus[type]
+                                        return status.hasAllowRule ? (
+                                          <Typography key={type} variant="caption" component="div" sx={{ ml: 1, fontFamily: 'monospace' }}>
+                                            • {type}: Allow rule "{status.allowRuleName}" would allow this path - needs exception!
+                                          </Typography>
+                                        ) : null
+                                      })}
+                                    </Box>
+                                    <Typography variant="body2" color="error" sx={{ fontWeight: 'bold' }}>
+                                      ⚠️ Attackers could execute {result.unprotectedTypes.join(', ').toLowerCase()} files from this path!
+                                    </Typography>
+                                    <Typography variant="caption" component="div" sx={{ mt: 1 }}>
+                                      Action required: Add an exception for this path to the Allow rules listed above.
+                                    </Typography>
+                                  </Alert>
+                                ) : (
+                                  <>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                      Check if this path allows execution:
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Paper
+                                        component="code"
+                                        sx={{
+                                          p: 1,
+                                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.100',
+                                          fontFamily: 'monospace',
+                                          fontSize: '0.875rem',
+                                        }}
+                                      >
+                                        icacls "{result.path}"
+                                      </Paper>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleCopyIcaclsCommand(result.path)}
+                                        title="Copy icacls command"
+                                      >
+                                        <ContentCopyIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                      Look for execute permissions (RX, F, etc.) in the output. If found, consider adding 
+                                      an exception to your AppLocker policy to block execution from this path.
+                                    </Typography>
+                                  </>
+                                )}
                               </>
                             )}
                           </Box>
