@@ -145,7 +145,7 @@ export const getRuleTips = (rule) => {
                 component="code"
                 sx={{
                   p: 1,
-                  bgcolor: 'grey.100',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.100',
                   fontFamily: 'monospace',
                   flex: 1,
                   fontSize: '0.875rem',

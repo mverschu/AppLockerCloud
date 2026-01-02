@@ -147,7 +147,7 @@ else {
           <Box sx={{ mb: 3 }}>
             <Typography variant="body1" paragraph>
               For machines managed by Microsoft Intune or other MDM solutions, the standard PowerShell cmdlet{' '}
-              <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5 }}>
+              <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5 }}>
                 Get-AppLockerPolicy -Effective
               </Typography> only works with on-premises Group Policy-based AppLocker policies.
               Use the script below to view AppLocker policies deployed via Intune/MDM.
@@ -160,9 +160,9 @@ else {
             Step 1: Download the PowerShell Script
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            Download the <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
+            Download the <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
               Get-IntuneAppLocker.ps1
-            </Typography> script from the <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
+            </Typography> script from the <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
               /scripts
             </Typography> directory of this repository,
             or copy the script below.
@@ -253,7 +253,7 @@ else {
             </Box>
           </Paper>
           <Typography variant="body2" color="text.secondary" paragraph>
-            This creates an <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
+            This creates an <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
               AppLockerPolicy.xml
             </Typography> file that you can import into this web application using the "Import from File" option.
           </Typography>
@@ -355,7 +355,7 @@ else {
             </Box>
           </Paper>
           <Typography variant="body2" color="text.secondary" paragraph>
-            This creates an <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
+            This creates an <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
               AppLockerPolicy.xml
             </Typography> file that you can import into this web application.
           </Typography>
@@ -365,7 +365,7 @@ else {
           <Alert severity="info" sx={{ mt: 2 }}>
             <AlertTitle>Official Documentation</AlertTitle>
             <Typography variant="body2">
-              For more information about the <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
+              For more information about the <Typography component="code" sx={{ fontFamily: 'monospace', backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)', px: 0.5, borderRadius: 0.5, display: 'inline' }}>
                 Get-AppLockerPolicy
               </Typography> cmdlet, see the{' '}
               <Link

@@ -28,13 +28,17 @@ import {
   ContentCopy as ContentCopyIcon,
   Delete as DeleteIcon,
   MenuBook as MenuBookIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
 } from '@mui/icons-material'
 import RuleList from './components/RuleList'
 import RuleForm from './components/RuleForm'
 import Docs from './components/Docs'
+import { useThemeMode } from './theme/ThemeProvider'
 import { getRules, exportXML, importXML, importDefaultRules, exportCollectionXML, deleteAllRules } from './services/api'
 
 function PolicyCreator() {
+  const { mode, toggleColorMode } = useThemeMode()
   const [rules, setRules] = useState([])
   const [selectedTab, setSelectedTab] = useState(0)
   const [openForm, setOpenForm] = useState(false)
@@ -383,8 +387,17 @@ function PolicyCreator() {
             component={Link}
             to="/docs"
             startIcon={<MenuBookIcon />}
+            sx={{ mr: 1 }}
           >
             Docs
+          </Button>
+          <Button
+            color="inherit"
+            onClick={toggleColorMode}
+            startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {mode === 'dark' ? 'Light' : 'Dark'}
           </Button>
         </Toolbar>
       </AppBar>
@@ -530,6 +543,7 @@ function PolicyCreator() {
 
 function DocsPage() {
   const location = useLocation()
+  const { mode, toggleColorMode } = useThemeMode()
   
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -553,9 +567,18 @@ function DocsPage() {
             startIcon={<MenuBookIcon />}
             sx={{
               backgroundColor: location.pathname === '/docs' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+              mr: 1,
             }}
           >
             Documentation
+          </Button>
+          <Button
+            color="inherit"
+            onClick={toggleColorMode}
+            startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {mode === 'dark' ? 'Light' : 'Dark'}
           </Button>
         </Toolbar>
       </AppBar>
