@@ -20,6 +20,7 @@ import {
   AccordionDetails,
   Alert,
   Tooltip,
+  CircularProgress,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -27,8 +28,11 @@ import {
   ExpandMore as ExpandMoreIcon,
   Info as InfoIcon,
   Visibility as VisibilityIcon,
+  Edit as EditIcon,
+  FileUpload as FileUploadIcon,
 } from '@mui/icons-material'
 import { createRule, updateRule, getCollections } from '../services/api'
+import { calculateFileHash } from '../utils/fileUtils'
 
 // Helper function to suggest environment variable for hardcoded paths
 const suggestEnvironmentVariable = (path) => {
@@ -134,6 +138,9 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
   })
   const [pathSuggestion, setPathSuggestion] = useState({ original: '', suggested: '', type: null }) // type: 'condition' or 'exception'
   const [exceptionDetailDialog, setExceptionDetailDialog] = useState({ open: false, exception: null, index: null })
+  const [editingExceptionIndex, setEditingExceptionIndex] = useState(null) // null when not editing, index when editing
+  const [loadingHash, setLoadingHash] = useState(false)
+  const [hashFileInputKey, setHashFileInputKey] = useState(0) // For resetting file input
 
   useEffect(() => {
     loadCollections()
@@ -332,6 +339,79 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     }
   }
 
+  const handleEditException = (index) => {
+    const exception = formData.exceptions[index]
+    setEditingExceptionIndex(index)
+    
+    // Populate form with existing exception data
+    if (exception.type === 'FilePathCondition') {
+      setNewException({
+        type: 'FilePathCondition',
+        path: exception.path || '',
+        publisher_name: '',
+        product_name: '',
+        binary_name: '',
+        version_range_type: 'any',
+        version_value: '',
+        version: '',
+        file_hash: '',
+        hash_type: 'SHA256',
+        source_file_name: '',
+        source_file_length: '',
+      })
+    } else if (exception.type === 'FilePublisherCondition') {
+      setNewException({
+        type: 'FilePublisherCondition',
+        path: '',
+        publisher_name: exception.publisher_name || '',
+        product_name: exception.product_name || '',
+        binary_name: exception.binary_name || '',
+        version_range_type: exception.version_range_type || 'any',
+        version_value: exception.version_value || '',
+        version: exception.version || '',
+        file_hash: '',
+        hash_type: 'SHA256',
+        source_file_name: '',
+        source_file_length: '',
+      })
+    } else if (exception.type === 'FileHashCondition') {
+      setNewException({
+        type: 'FileHashCondition',
+        path: '',
+        publisher_name: '',
+        product_name: '',
+        binary_name: '',
+        version_range_type: 'any',
+        version_value: '',
+        version: '',
+        file_hash: exception.file_hash || '',
+        hash_type: exception.hash_type || 'SHA256',
+        source_file_name: exception.source_file_name || '',
+        source_file_length: exception.source_file_length || '',
+      })
+    }
+    setPathSuggestion({ original: '', suggested: '', type: null })
+  }
+
+  const handleCancelEditException = () => {
+    setEditingExceptionIndex(null)
+    setNewException({
+      type: 'FilePathCondition',
+      path: '',
+      publisher_name: '',
+      product_name: '',
+      binary_name: '',
+      version_range_type: 'any',
+      version_value: '',
+      version: '',
+      file_hash: '',
+      hash_type: 'SHA256',
+      source_file_name: '',
+      source_file_length: '',
+    })
+    setPathSuggestion({ original: '', suggested: '', type: null })
+  }
+
   const handleAddException = () => {
     let exceptionObj = {}
     
@@ -382,10 +462,22 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
       }
     }
     
-    setFormData({
-      ...formData,
-      exceptions: [...formData.exceptions, exceptionObj],
-    })
+    if (editingExceptionIndex !== null) {
+      // Update existing exception
+      const updatedExceptions = [...formData.exceptions]
+      updatedExceptions[editingExceptionIndex] = exceptionObj
+      setFormData({
+        ...formData,
+        exceptions: updatedExceptions,
+      })
+      setEditingExceptionIndex(null)
+    } else {
+      // Add new exception
+      setFormData({
+        ...formData,
+        exceptions: [...formData.exceptions, exceptionObj],
+      })
+    }
     
     setNewException({
       type: 'FilePathCondition',
@@ -409,6 +501,52 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
       ...formData,
       exceptions: formData.exceptions.filter((_, i) => i !== index),
     })
+    // If we're editing the exception that was deleted, cancel edit mode
+    if (editingExceptionIndex === index) {
+      handleCancelEditException()
+    } else if (editingExceptionIndex !== null && editingExceptionIndex > index) {
+      // If we're editing a later exception, adjust the index
+      setEditingExceptionIndex(editingExceptionIndex - 1)
+    }
+  }
+
+  const handleHashFileSelect = async (event, isException = false) => {
+    const file = event.target.files[0]
+    if (!file) return
+    
+    setLoadingHash(true)
+    try {
+      const hashInfo = await calculateFileHash(file)
+      
+      if (isException) {
+        setNewException({
+          ...newException,
+          type: 'FileHashCondition',
+          file_hash: hashInfo.hash,
+          hash_type: 'SHA256',
+          source_file_name: hashInfo.filename,
+          source_file_length: hashInfo.size.toString(),
+        })
+      } else {
+        setNewCondition({
+          ...newCondition,
+          type: 'FileHashCondition',
+          file_hash: hashInfo.hash,
+          hash_type: 'SHA256',
+          source_file_name: hashInfo.filename,
+          source_file_length: hashInfo.size.toString(),
+        })
+      }
+      
+      // Reset file input
+      setHashFileInputKey(prev => prev + 1)
+      event.target.value = ''
+    } catch (error) {
+      alert(`Failed to calculate file hash: ${error.message}`)
+      console.error('Hash calculation error:', error)
+    } finally {
+      setLoadingHash(false)
+    }
   }
 
   const handleSubmit = async () => {
@@ -712,15 +850,36 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
 
                     {newCondition.type === 'FileHashCondition' && (
                       <>
-                        <TextField
-                          fullWidth
-                          label="File Hash (SHA256)"
-                          value={newCondition.file_hash}
-                          onChange={handleConditionFieldChange('file_hash')}
-                          required
-                          placeholder="A1B2C3D4... or 0xA1B2C3D4..."
-                          helperText="Enter SHA256 hash (with or without 0x prefix)"
-                        />
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                          <TextField
+                            fullWidth
+                            label="File Hash (SHA256)"
+                            value={newCondition.file_hash}
+                            onChange={handleConditionFieldChange('file_hash')}
+                            required
+                            placeholder="A1B2C3D4... or 0xA1B2C3D4..."
+                            helperText="Enter SHA256 hash (with or without 0x prefix)"
+                          />
+                          <input
+                            accept="*"
+                            style={{ display: 'none' }}
+                            id="hash-file-input-condition"
+                            key={hashFileInputKey}
+                            type="file"
+                            onChange={(e) => handleHashFileSelect(e, false)}
+                          />
+                          <Button
+                            variant="outlined"
+                            component="label"
+                            htmlFor="hash-file-input-condition"
+                            startIcon={loadingHash ? <CircularProgress size={16} /> : <FileUploadIcon />}
+                            disabled={loadingHash}
+                            sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                            title="Select a file to calculate its SHA256 hash"
+                          >
+                            {loadingHash ? 'Calculating...' : 'From File'}
+                          </Button>
+                        </Box>
                         <TextField
                           fullWidth
                           label="Source File Name"
@@ -763,23 +922,35 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                     const displayName = pubName.length > 40 ? pubName.substring(0, 40) + '...' : pubName
                     label = `Publisher: ${displayName}`
                   } else if (exception.type === 'FileHashCondition') {
-                    label = `Hash: ${exception.file_hash.substring(0, 16)}... (${exception.hash_type})`
+                    label = `Hash: ${exception.file_hash.substring(0, 16)}... (SHA256)`
                   } else {
                     label = `Exception ${index + 1}`
                   }
                   return (
-                    <Chip
-                      key={index}
-                      label={label}
-                      onDelete={(e) => {
-                        e.stopPropagation()
-                        handleRemoveException(index)
-                      }}
-                      onClick={() => setExceptionDetailDialog({ open: true, exception, index })}
-                      icon={exception.type === 'FilePublisherCondition' ? <VisibilityIcon /> : undefined}
-                      sx={{ m: 0.5, cursor: 'pointer' }}
-                      color="warning"
-                    />
+                    <Box key={index} sx={{ display: 'inline-flex', alignItems: 'center', m: 0.5 }}>
+                      <Chip
+                        label={label}
+                        onDelete={(e) => {
+                          e.stopPropagation()
+                          handleRemoveException(index)
+                        }}
+                        onClick={() => setExceptionDetailDialog({ open: true, exception, index })}
+                        icon={exception.type === 'FilePublisherCondition' ? <VisibilityIcon /> : undefined}
+                        sx={{ cursor: 'pointer' }}
+                        color="warning"
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditException(index)
+                        }}
+                        sx={{ ml: 0.5 }}
+                        color="primary"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
                   )
                 })
               )}
@@ -788,7 +959,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
             <Grid item xs={12}>
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography>Add Exception</Typography>
+                  <Typography>{editingExceptionIndex !== null ? `Edit Exception ${editingExceptionIndex + 1}` : 'Add Exception'}</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -904,28 +1075,36 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
 
                     {newException.type === 'FileHashCondition' && (
                       <>
-                        <FormControl fullWidth>
-                          <InputLabel>Hash Type</InputLabel>
-                          <Select
-                            value={newException.hash_type}
-                            onChange={(e) => setNewException({ ...newException, hash_type: e.target.value })}
-                            label="Hash Type"
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                          <TextField
+                            fullWidth
+                            label="File Hash (SHA256)"
+                            value={newException.file_hash}
+                            onChange={handleExceptionFieldChange('file_hash')}
+                            placeholder="E4BF8DA2B31F81D58CDAEEA94C527D4FAC2A3255D2D4DA91BDA7B6C89F68A09B"
+                            helperText="SHA256 hash value (without 0x prefix)"
+                            required
+                          />
+                          <input
+                            accept="*"
+                            style={{ display: 'none' }}
+                            id="hash-file-input-exception"
+                            key={`exception-${hashFileInputKey}`}
+                            type="file"
+                            onChange={(e) => handleHashFileSelect(e, true)}
+                          />
+                          <Button
+                            variant="outlined"
+                            component="label"
+                            htmlFor="hash-file-input-exception"
+                            startIcon={loadingHash ? <CircularProgress size={16} /> : <FileUploadIcon />}
+                            disabled={loadingHash}
+                            sx={{ mt: 1, whiteSpace: 'nowrap' }}
+                            title="Select a file to calculate its SHA256 hash"
                           >
-                            <MenuItem value="SHA256">SHA256</MenuItem>
-                            <MenuItem value="SHA512">SHA512</MenuItem>
-                            <MenuItem value="SHA1">SHA1</MenuItem>
-                            <MenuItem value="MD5">MD5</MenuItem>
-                          </Select>
-                        </FormControl>
-                        <TextField
-                          fullWidth
-                          label="File Hash"
-                          value={newException.file_hash}
-                          onChange={handleExceptionFieldChange('file_hash')}
-                          placeholder="E4BF8DA2B31F81D58CDAEEA94C527D4FAC2A3255D2D4DA91BDA7B6C89F68A09B"
-                          helperText="File hash value (without 0x prefix)"
-                          required
-                        />
+                            {loadingHash ? 'Calculating...' : 'From File'}
+                          </Button>
+                        </Box>
                         <TextField
                           fullWidth
                           label="Source File Name"
@@ -946,13 +1125,23 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                       </>
                     )}
 
-                    <Button
-                      variant="outlined"
-                      startIcon={<AddIcon />}
-                      onClick={handleAddException}
-                    >
-                      Add Exception
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        variant="contained"
+                        startIcon={editingExceptionIndex !== null ? <EditIcon /> : <AddIcon />}
+                        onClick={handleAddException}
+                      >
+                        {editingExceptionIndex !== null ? 'Update Exception' : 'Add Exception'}
+                      </Button>
+                      {editingExceptionIndex !== null && (
+                        <Button
+                          variant="outlined"
+                          onClick={handleCancelEditException}
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </Box>
                   </Box>
                 </AccordionDetails>
               </Accordion>
@@ -1055,7 +1244,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                     Hash Type
                   </Typography>
                   <Typography variant="body1" sx={{ mb: 2 }}>
-                    {exceptionDetailDialog.exception.hash_type || 'SHA256'}
+                    SHA256
                   </Typography>
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                     File Hash

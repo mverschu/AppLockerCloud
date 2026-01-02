@@ -138,7 +138,7 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
                         label = `Publisher: ${exception.publisher_name || 'N/A'}`
                       } else if (exception?.type === 'FileHashCondition') {
                         const hash = exception.file_hash || ''
-                        label = `Hash: ${hash.substring(0, 12)}... (${exception.hash_type || 'SHA256'})`
+                        label = `Hash: ${hash.substring(0, 12)}... (SHA256)`
                       } else {
                         label = 'Exception'
                       }
