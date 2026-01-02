@@ -575,6 +575,39 @@ const PolicyHardening = () => {
                                   <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
                                     ⚠️ Attackers could execute {result.unprotectedTypes.join(', ').toLowerCase()} files from this path!
                                   </Typography>
+                                  <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(255, 255, 255, 0.05)', borderRadius: 1 }}>
+                                    <Typography variant="caption" component="div" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                      ⚠️ IMPORTANT: Verify execute permissions before taking action
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ mb: 1 }}>
+                                      This attack is only possible if the path has BOTH write (W) AND execute (X) permissions. 
+                                      Verify with icacls:
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                      <Paper
+                                        component="code"
+                                        sx={{
+                                          p: 1,
+                                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.05)',
+                                          fontFamily: 'monospace',
+                                          fontSize: '0.875rem',
+                                        }}
+                                      >
+                                        icacls "{result.path}"
+                                      </Paper>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleCopyIcaclsCommand(result.path)}
+                                        title="Copy icacls command"
+                                      >
+                                        <ContentCopyIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                    <Typography variant="caption" component="div">
+                                      Look for execute permissions (RX, F, M, etc.) in the output. If execute permissions are NOT present, 
+                                      this path is not immediately exploitable, but you should still add exceptions as a defense-in-depth measure.
+                                    </Typography>
+                                  </Box>
                                   <Typography variant="caption" component="div" sx={{ mt: 1 }}>
                                     Action required: Add exceptions for this path to the Allow rules listed above.
                                   </Typography>
@@ -605,6 +638,39 @@ const PolicyHardening = () => {
                                     <Typography variant="body2" color="error" sx={{ fontWeight: 'bold' }}>
                                       ⚠️ Attackers could execute {result.unprotectedTypes.join(', ').toLowerCase()} files from this path!
                                     </Typography>
+                                    <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(255, 255, 255, 0.05)', borderRadius: 1 }}>
+                                      <Typography variant="caption" component="div" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                        ⚠️ IMPORTANT: Verify execute permissions before taking action
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ mb: 1 }}>
+                                        This attack is only possible if the path has BOTH write (W) AND execute (X) permissions. 
+                                        Verify with icacls:
+                                      </Typography>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                        <Paper
+                                          component="code"
+                                          sx={{
+                                            p: 1,
+                                            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.05)',
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.875rem',
+                                          }}
+                                        >
+                                          icacls "{result.path}"
+                                        </Paper>
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => handleCopyIcaclsCommand(result.path)}
+                                          title="Copy icacls command"
+                                        >
+                                          <ContentCopyIcon fontSize="small" />
+                                        </IconButton>
+                                      </Box>
+                                      <Typography variant="caption" component="div">
+                                        Look for execute permissions (RX, F, M, etc.) in the output. If execute permissions are NOT present, 
+                                        this path is not immediately exploitable, but you should still add exceptions as a defense-in-depth measure.
+                                      </Typography>
+                                    </Box>
                                     <Typography variant="caption" component="div" sx={{ mt: 1 }}>
                                       Action required: Add an exception for this path to the Allow rules listed above.
                                     </Typography>
@@ -612,7 +678,7 @@ const PolicyHardening = () => {
                                 ) : (
                                   <>
                                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                      Check if this path allows execution:
+                                      Check if this path allows execution (requires BOTH write AND execute permissions):
                                     </Typography>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                       <Paper
@@ -635,8 +701,9 @@ const PolicyHardening = () => {
                                       </IconButton>
                                     </Box>
                                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                                      Look for execute permissions (RX, F, etc.) in the output. If found, consider adding 
-                                      an exception to your AppLocker policy to block execution from this path.
+                                      Look for execute permissions (RX, F, M, etc.) in the output. The path is writable (W), but 
+                                      an attack is only possible if it also has execute (X) permissions. If execute permissions are found, 
+                                      consider adding an exception to your AppLocker policy to block execution from this path.
                                     </Typography>
                                   </>
                                 )}
