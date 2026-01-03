@@ -4,7 +4,7 @@ A web-based tool for creating and managing Windows AppLocker policies. Create ap
 
 ## Screenshots
 
-<img width="1714" height="901" alt="image" src="https://github.com/user-attachments/assets/6a2a78f6-6bb9-4e47-89b2-3ef644d84e0d" />
+<img width="1508" height="729" alt="image" src="https://github.com/user-attachments/assets/04412dc9-ad54-4139-adcc-ba2ed98a1263" />
 
 ## Requirements
 
