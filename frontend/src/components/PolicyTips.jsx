@@ -23,14 +23,14 @@ import {
 
 // Common bypass folders that should be protected
 const BYPASS_FOLDERS = [
-  { path: '%SYSTEM32%\\Tasks', display: 'C:\\Windows\\System32\\Tasks', perm: 'W' },
-  { path: '%WINDIR%\\Tasks', display: 'C:\\Windows\\Tasks', perm: 'RW' },
-  { path: '%WINDIR%\\tracing', display: 'C:\\Windows\\tracing', perm: 'RW' },
-  { path: '%WINDIR%\\Registration\\CRMLog', display: 'C:\\Windows\\Registration\\CRMLog', perm: 'RW' },
-  { path: '%SYSTEM32%\\spool\\drivers\\color', display: 'C:\\Windows\\System32\\spool\\drivers\\color', perm: 'RW' },
+  { path: '%SYSTEM32%\\Tasks\\*', display: 'C:\\Windows\\System32\\Tasks', perm: 'W' },
+  { path: '%WINDIR%\\Tasks\\*', display: 'C:\\Windows\\Tasks', perm: 'RW' },
+  { path: '%WINDIR%\\tracing\\*', display: 'C:\\Windows\\tracing', perm: 'RW' },
+  { path: '%WINDIR%\\Registration\\CRMLog\\*', display: 'C:\\Windows\\Registration\\CRMLog', perm: 'RW' },
+  { path: '%SYSTEM32%\\spool\\drivers\\color\\*', display: 'C:\\Windows\\System32\\spool\\drivers\\color', perm: 'RW' },
   { path: '%SYSTEM32%\\Tasks\\Microsoft\\Windows\\PLA\\System\\*', display: 'C:\\Windows\\System32\\Tasks\\Microsoft\\Windows\\PLA\\System\\*', perm: 'W' },
   { path: '%SYSTEM32%\\Tasks\\Microsoft\\Windows\\SyncCenter\\*', display: 'C:\\Windows\\System32\\Tasks\\Microsoft\\Windows\\SyncCenter\\*', perm: 'W' },
-  { path: '%WINDIR%\\SysWOW64\\Tasks', display: 'C:\\Windows\\SysWOW64\\Tasks', perm: 'W' },
+  { path: '%WINDIR%\\SysWOW64\\Tasks\\*', display: 'C:\\Windows\\SysWOW64\\Tasks', perm: 'W' },
 ]
 
 // Normalize path for comparison (handle environment variables and case)
