@@ -105,32 +105,46 @@ const pathMatchesException = (foundPath, exceptionPath) => {
   const foundNorm = foundPath.replace(/\\/g, '/').toLowerCase()
   let exceptionNorm = expandedException.replace(/\\/g, '/').toLowerCase()
   
+  // Check if exception path has a trailing wildcard (required for directory paths)
+  const hasWildcard = exceptionNorm.endsWith('/*') || exceptionNorm.endsWith('*')
+  
+  // Check if exception path ends with a file extension (it's a file path)
+  const fileExtensionPattern = /\.[a-z0-9]{1,4}$/i
+  const isFileException = fileExtensionPattern.test(exceptionNorm)
+  
+  // If exception path is a directory path (no file extension) and doesn't have wildcard,
+  // it won't protect files/subdirectories within that directory in AppLocker
+  // Directory exceptions without wildcard are not effective for protection
+  if (!hasWildcard && !isFileException) {
+    // Directory path without wildcard - doesn't protect anything (return false)
+    return false
+  }
+  
   // Exact match
   if (foundNorm === exceptionNorm) return true
   
-  // Remove trailing wildcards for base comparison
-  const exceptionBase = exceptionNorm.replace(/\/\*$/, '').replace(/\*$/, '')
+  // For file exceptions (with extension), only exact match
+  if (isFileException) {
+    return foundNorm === exceptionNorm
+  }
   
-  // Check if found path is within exception path (exception is parent directory)
+  // For directory exceptions with wildcard, check if found path is within exception path
   // e.g., exception: C:\Windows\Tasks\* matches found: C:\Windows\Tasks\something
-  if (exceptionBase && foundNorm.startsWith(exceptionBase + '/')) {
-    return true
-  }
-  
-  // Check if exception path exactly matches found path (without wildcard)
-  if (foundNorm === exceptionBase) {
-    return true
-  }
-  
-  // Check if exception path is a subpath of found path (found is parent)
-  // e.g., exception: C:\Windows\Tasks\subfolder matches found: C:\Windows\Tasks
-  if (exceptionBase && exceptionBase.startsWith(foundNorm + '/')) {
-    return true
-  }
-  
-  // Check if exception is a parent with wildcard at the end
-  // e.g., exception: C:\Windows\* matches found: C:\Windows\Tasks
-  if (exceptionNorm.endsWith('/*') || exceptionNorm.endsWith('*')) {
+  if (hasWildcard) {
+    const exceptionBase = exceptionNorm.replace(/\/\*$/, '').replace(/\*$/, '')
+    
+    // Check if found path is within exception path (exception is parent directory)
+    if (exceptionBase && foundNorm.startsWith(exceptionBase + '/')) {
+      return true
+    }
+    
+    // Check if exception path exactly matches found path (without wildcard)
+    if (foundNorm === exceptionBase) {
+      return true
+    }
+    
+    // Check if exception is a parent with wildcard at the end
+    // e.g., exception: C:\Windows\* matches found: C:\Windows\Tasks
     const parentPath = exceptionNorm.replace(/\/\*$/, '').replace(/\*$/, '')
     if (foundNorm.startsWith(parentPath + '/') || foundNorm === parentPath) {
       return true

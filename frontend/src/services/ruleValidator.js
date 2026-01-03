@@ -67,6 +67,62 @@ function pathConditionMatches(condition, testPath) {
 }
 
 /**
+ * Check if an exception path matches a test path
+ * For directory exceptions, requires trailing wildcard to match files within the directory
+ */
+function exceptionPathMatches(exceptionPath, testPath) {
+  if (!exceptionPath || !testPath) return false
+  
+  // Expand environment variables
+  const expandedException = expandPath(exceptionPath)
+  const expandedTest = expandPath(testPath)
+  
+  // Normalize paths
+  const exceptionNorm = normalizePath(expandedException)
+  const testNorm = normalizePath(expandedTest)
+  
+  // Check if exception path has a trailing wildcard (required for directory paths)
+  const hasWildcard = exceptionPath.endsWith('\\*') || exceptionPath.endsWith('/*') || exceptionPath.endsWith('*')
+  
+  // Check if exception path ends with a file extension (it's a file path)
+  const fileExtensionPattern = /\.[a-z0-9]{1,4}$/i
+  const isFileException = fileExtensionPattern.test(exceptionPath)
+  
+  // If exception path is a directory path (no file extension) and doesn't have wildcard,
+  // it won't match files/subdirectories within that directory in AppLocker
+  // Only match if it's an exact match
+  if (!hasWildcard && !isFileException) {
+    // Directory path without wildcard - only exact match
+    return exceptionNorm === testNorm
+  }
+  
+  // Exact match
+  if (exceptionNorm === testNorm) return true
+  
+  // For file exceptions (with extension), only exact match
+  if (isFileException) {
+    return exceptionNorm === testNorm
+  }
+  
+  // For directory exceptions with wildcard, check if test path is within exception path
+  if (hasWildcard) {
+    const exceptionBase = exceptionNorm.replace(/\/\*$/, '').replace(/\*$/, '')
+    
+    // Check if test path is within exception path (exception is parent directory)
+    if (exceptionBase && testNorm.startsWith(exceptionBase + '/')) {
+      return true
+    }
+    
+    // Check if exception path exactly matches test path (without wildcard)
+    if (testNorm === exceptionBase) {
+      return true
+    }
+  }
+  
+  return false
+}
+
+/**
  * Check if a publisher condition matches (simplified - exact match for now)
  */
 function publisherConditionMatches(condition, testPublisher) {
@@ -114,6 +170,14 @@ function conditionMatches(condition, testCase) {
  * Check if an exception matches a test case
  */
 function exceptionMatches(exception, testCase) {
+  if (!exception || !testCase) return false
+  
+  // For FilePathCondition exceptions, use special matching logic that requires wildcards for directories
+  if (exception.type === 'FilePathCondition' && exception.path && testCase.path) {
+    return exceptionPathMatches(exception.path, testCase.path)
+  }
+  
+  // For other exception types, use standard condition matching
   return conditionMatches(exception, testCase)
 }
 
@@ -229,6 +293,37 @@ export function validateRule(rule, allRules = []) {
             message: 'Source file name is required for FileHashCondition',
           })
         }
+      }
+    })
+  }
+  
+  // Validate exceptions - check for directory paths missing trailing wildcard
+  if (rule.exceptions && rule.exceptions.length > 0) {
+    rule.exceptions.forEach((exception, index) => {
+      if (exception.type === 'FilePathCondition' && exception.path) {
+        const path = exception.path.trim()
+        
+        // Check if path ends with wildcard (correct format)
+        if (path.endsWith('\\*') || path.endsWith('/*') || path.endsWith('*')) {
+          // Path already has wildcard, which is correct
+          return
+        }
+        
+        // Check if path ends with a file extension (it's a file, not a directory)
+        const fileExtensionPattern = /\.[a-z0-9]{1,4}$/i
+        if (fileExtensionPattern.test(path)) {
+          // Path ends with file extension, so it's a file path - no wildcard needed
+          return
+        }
+        
+        // Path doesn't end with wildcard or file extension - likely a directory path
+        // Directory exception paths need \* to exclude all files in the directory
+        const expandedPath = expandPath(path)
+        errors.push({
+          type: 'error',
+          field: `exceptions[${index}].path`,
+          message: `Directory exception path "${path}" must end with \\* to exclude files in that directory. Use "${path}\\*" instead. Without the wildcard, the exception will not work as intended (e.g., "${expandedPath}\\malware.exe" will not be excluded).`,
+        })
       }
     })
   }
