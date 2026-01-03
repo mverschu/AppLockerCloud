@@ -47,6 +47,8 @@ import {
   Visibility as VisibilityIcon,
   Menu as MenuIcon,
   GitHub as GitHubIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
 } from '@mui/icons-material'
 import RuleList from './components/RuleList'
 import RuleForm from './components/RuleForm'
@@ -56,6 +58,71 @@ import ValidationPanel from './components/ValidationPanel'
 import { useThemeMode } from './theme/ThemeProvider'
 import { getRules, exportXML, importXML, importDefaultRules, exportCollectionXML, deleteAllRules } from './services/api'
 import { validateAllRules } from './services/ruleValidator'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism'
+
+// Format XML string with proper indentation
+function formatXML(xmlString) {
+  try {
+    // Remove existing whitespace between tags
+    let formatted = xmlString.replace(/>\s+</g, '><')
+    
+    let result = ''
+    let indent = 0
+    const tab = '  '
+    let inTag = false
+    let currentTag = ''
+    
+    for (let i = 0; i < formatted.length; i++) {
+      const char = formatted[i]
+      
+      if (char === '<') {
+        // Check if previous tag was closing
+        if (i > 0 && formatted[i - 1] === '>') {
+          result += '\n'
+        }
+        
+        inTag = true
+        currentTag = char
+        
+        // Check if it's a closing tag
+        if (formatted[i + 1] === '/') {
+          indent = Math.max(0, indent - 1)
+          result += tab.repeat(indent) + char
+        } else {
+          result += (result && result[result.length - 1] !== '\n' ? '\n' : '') + tab.repeat(indent) + char
+        }
+      } else if (char === '>') {
+        currentTag += char
+        inTag = false
+        
+        // Check if it's a self-closing tag
+        if (currentTag.endsWith('/>')) {
+          result += char
+        } else if (currentTag.startsWith('</')) {
+          result += char
+        } else {
+          result += char
+          // Only increase indent if not self-closing
+          if (!currentTag.includes('/>')) {
+            indent++
+          }
+        }
+        currentTag = ''
+      } else {
+        if (inTag) {
+          currentTag += char
+        }
+        result += char
+      }
+    }
+    
+    return result.trim()
+  } catch (error) {
+    // If formatting fails, return original
+    return xmlString
+  }
+}
 
 function PolicyCreator() {
   const { mode, toggleColorMode } = useThemeMode()
@@ -79,6 +146,7 @@ function PolicyCreator() {
   const [fileMenuAnchor, setFileMenuAnchor] = useState(null)
   const [toolsMenuAnchor, setToolsMenuAnchor] = useState(null)
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null)
+  const [exportFullscreen, setExportFullscreen] = useState(false)
 
   useEffect(() => {
     loadRules()
@@ -143,7 +211,9 @@ function PolicyCreator() {
       }
       
       if (asText) {
-        setExportXmlText(xml)
+        // Format the XML nicely
+        const formattedXml = formatXML(xml)
+        setExportXmlText(formattedXml)
         setOpenExportDialog(true)
       } else {
         const blob = new Blob([xml], { type: 'application/xml' })
@@ -763,27 +833,57 @@ function PolicyCreator() {
 
       <Dialog
         open={openExportDialog}
-        onClose={() => setOpenExportDialog(false)}
-        maxWidth="md"
-        fullWidth
+        onClose={() => {
+          setOpenExportDialog(false)
+          setExportXmlText('')
+          setExportFullscreen(false)
+        }}
+        maxWidth={exportFullscreen ? false : "lg"}
+        fullWidth={!exportFullscreen}
+        fullScreen={exportFullscreen}
       >
-        <DialogTitle>Export XML as Text</DialogTitle>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">Export XML as Text</Typography>
+            <IconButton
+              onClick={() => setExportFullscreen(!exportFullscreen)}
+              size="small"
+              title={exportFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            >
+              {exportFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+            </IconButton>
+          </Box>
+        </DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="XML Content"
-            fullWidth
-            multiline
-            rows={20}
-            variant="outlined"
-            value={exportXmlText}
-            onChange={(e) => setExportXmlText(e.target.value)}
-            sx={{ mt: 2 }}
-            InputProps={{
-              readOnly: false,
+          <Box
+            sx={{
+              mt: 2,
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 1,
+              overflow: 'auto',
+              maxHeight: exportFullscreen ? 'calc(100vh - 200px)' : '70vh',
+              '& pre': {
+                margin: 0,
+                padding: 0,
+                fontSize: '0.875rem',
+                fontFamily: 'monospace',
+              },
             }}
-          />
+          >
+            <SyntaxHighlighter
+              language="xml"
+              style={mode === 'dark' ? vscDarkPlus : vs}
+              customStyle={{
+                margin: 0,
+                padding: 16,
+                backgroundColor: mode === 'dark' ? '#1e1e1e' : '#ffffff',
+              }}
+              showLineNumbers
+            >
+              {exportXmlText}
+            </SyntaxHighlighter>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button
@@ -796,6 +896,7 @@ function PolicyCreator() {
           <Button onClick={() => {
             setOpenExportDialog(false)
             setExportXmlText('')
+            setExportFullscreen(false)
           }}>
             Close
           </Button>
