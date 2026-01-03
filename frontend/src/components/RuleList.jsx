@@ -69,16 +69,16 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
   }
 
   return (
-    <TableContainer component={Paper}>
-      <Table>
+    <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+      <Table sx={{ minWidth: 650 }}>
         <TableHead>
           <TableRow>
             <TableCell>Name</TableCell>
             <TableCell>Collection</TableCell>
             <TableCell>Action</TableCell>
-            <TableCell>Description</TableCell>
-            <TableCell>Conditions</TableCell>
-            <TableCell>Exceptions</TableCell>
+            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Description</TableCell>
+            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Conditions</TableCell>
+            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Exceptions</TableCell>
             <TableCell align="right">Actions</TableCell>
           </TableRow>
         </TableHead>
@@ -104,12 +104,12 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
                   size="small"
                 />
               </TableCell>
-              <TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                 <Typography variant="body2" color="text.secondary">
                   {rule.description || '-'}
                 </Typography>
               </TableCell>
-              <TableCell>
+              <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
                 {rule.conditions && Array.isArray(rule.conditions) && rule.conditions.length > 0 ? (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {rule.conditions.map((condition, idx) => (
@@ -127,7 +127,7 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
                   </Typography>
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
                 {rule.exceptions && Array.isArray(rule.exceptions) && rule.exceptions.length > 0 ? (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {rule.exceptions.map((exception, idx) => {

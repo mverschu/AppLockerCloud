@@ -21,6 +21,11 @@ import {
   InputAdornment,
   IconButton,
   Paper,
+  useMediaQuery,
+  useTheme,
+  Divider,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material'
 import {
   Download as DownloadIcon,
@@ -36,16 +41,26 @@ import {
   Security as SecurityIcon,
   Search as SearchIcon,
   Clear as ClearIcon,
+  VerifiedUser as VerifiedUserIcon,
+  Folder as FolderIcon,
+  Build as BuildIcon,
+  Visibility as VisibilityIcon,
+  Menu as MenuIcon,
+  GitHub as GitHubIcon,
 } from '@mui/icons-material'
 import RuleList from './components/RuleList'
 import RuleForm from './components/RuleForm'
 import Docs from './components/Docs'
 import PolicyHardening from './components/PolicyHardening'
+import ValidationPanel from './components/ValidationPanel'
 import { useThemeMode } from './theme/ThemeProvider'
 import { getRules, exportXML, importXML, importDefaultRules, exportCollectionXML, deleteAllRules } from './services/api'
+import { validateAllRules } from './services/ruleValidator'
 
 function PolicyCreator() {
   const { mode, toggleColorMode } = useThemeMode()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [rules, setRules] = useState([])
   const [selectedTab, setSelectedTab] = useState(0)
   const [openForm, setOpenForm] = useState(false)
@@ -59,6 +74,11 @@ function PolicyCreator() {
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null)
   const [clearConfirmDialog, setClearConfirmDialog] = useState({ open: false, collection: null })
   const [searchQuery, setSearchQuery] = useState('')
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false)
+  const [validationBeforeExport, setValidationBeforeExport] = useState(true)
+  const [fileMenuAnchor, setFileMenuAnchor] = useState(null)
+  const [toolsMenuAnchor, setToolsMenuAnchor] = useState(null)
+  const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null)
 
   useEffect(() => {
     loadRules()
@@ -95,6 +115,22 @@ function PolicyCreator() {
 
   const handleExport = async (asText = false, collectionType = null) => {
     try {
+      // Validate before export if enabled
+      if (validationBeforeExport && rules.length > 0) {
+        const validation = validateAllRules(rules)
+        if (!validation.valid) {
+          const hasErrors = validation.errors.length > 0 || validation.conflicts.length > 0
+          const message = hasErrors
+            ? `Policy has ${validation.errors.length} errors and ${validation.conflicts.length} conflicts. Export anyway?`
+            : `Policy has ${validation.warnings.length} warnings. Export anyway?`
+          
+          if (!window.confirm(message + '\n\nClick OK to export anyway, or Cancel to review validation first.')) {
+            setValidationDialogOpen(true)
+            return
+          }
+        }
+      }
+      
       let xml
       let filename
       
@@ -346,13 +382,57 @@ function PolicyCreator() {
     return filterRulesBySearch(filtered, searchQuery)
   }, [rules, selectedTab, searchQuery])
 
+  const handleFileMenuOpen = (event) => {
+    setFileMenuAnchor(event.currentTarget)
+  }
+
+  const handleFileMenuClose = () => {
+    setFileMenuAnchor(null)
+  }
+
+  const handleToolsMenuOpen = (event) => {
+    setToolsMenuAnchor(event.currentTarget)
+  }
+
+  const handleToolsMenuClose = () => {
+    setToolsMenuAnchor(null)
+  }
+
+  const handleMobileMenuOpen = (event) => {
+    setMobileMenuAnchor(event.currentTarget)
+  }
+
+  const handleMobileMenuClose = () => {
+    setMobileMenuAnchor(null)
+  }
+
+  const collectionMap = {
+    1: 'Exe',
+    2: 'Script',
+    3: 'Dll',
+    4: 'Msi',
+    5: 'Appx',
+  }
+  const currentCollection = selectedTab > 0 ? collectionMap[selectedTab] : null
+
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component={Link} to="/" sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}>
-            AppLocker Policy Creator
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <AppBar position="static" sx={{ flexShrink: 0 }}>
+        <Toolbar sx={{ flexWrap: { xs: 'wrap', md: 'nowrap' }, gap: { xs: 0.5, md: 1 } }}>
+          <Typography 
+            variant={isMobile ? "subtitle1" : "h6"} 
+            component={Link} 
+            to="/" 
+            sx={{ 
+              flexGrow: { xs: 1, md: 1 }, 
+              textDecoration: 'none', 
+              color: 'inherit',
+              minWidth: { xs: 'auto', md: 'auto' }
+            }}
+          >
+            {isMobile ? 'AppLocker' : 'AppLocker Policy Creator'}
           </Typography>
+          
           <input
             accept=".xml"
             style={{ display: 'none' }}
@@ -360,150 +440,240 @@ function PolicyCreator() {
             type="file"
             onChange={handleImport}
           />
-          <Button
-            color="inherit"
-            startIcon={<UploadIcon />}
-            endIcon={<ArrowDropDownIcon />}
-            onClick={handleImportMenuOpen}
-            sx={{ mr: 1 }}
-          >
-            Import
-          </Button>
-          <Menu
-            anchorEl={importMenuAnchor}
-            open={Boolean(importMenuAnchor)}
-            onClose={handleImportMenuClose}
-          >
-            <label htmlFor="import-button-file">
-              <MenuItem component="span" onClick={handleImportMenuClose}>
-                <UploadIcon sx={{ mr: 1, fontSize: 20 }} />
-                Import from File
-              </MenuItem>
-            </label>
-            <MenuItem onClick={handleImportFromText}>
-              <UploadIcon sx={{ mr: 1, fontSize: 20 }} />
-              Import from Text
-            </MenuItem>
-          </Menu>
-          <Button
-            color="inherit"
-            startIcon={<CloudDownloadIcon />}
-            onClick={handleImportDefaults}
-            sx={{ mr: 1 }}
-          >
-            Import Defaults
-          </Button>
-          <Button
-            color="inherit"
-            startIcon={<DeleteIcon />}
-            onClick={() => handleClearRules(selectedTab)}
-            disabled={!filteredRules || filteredRules.length === 0}
-            sx={{ mr: 1 }}
-          >
-            {selectedTab === 0 ? 'Clear All Rules' : (() => {
-              const collectionMap = {
-                1: 'Exe',
-                2: 'Script',
-                3: 'Dll',
-                4: 'Msi',
-                5: 'Appx',
-              }
-              return `Clear ${collectionMap[selectedTab] || 'Collection'} Rules`
-            })()}
-          </Button>
-          <Button
-            color="inherit"
-            startIcon={<DownloadIcon />}
-            endIcon={<ArrowDropDownIcon />}
-            onClick={handleExportMenuOpen}
-            disabled={rules.length === 0}
-            sx={{ mr: 1 }}
-          >
-            Export XML
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor}
-            open={Boolean(exportMenuAnchor)}
-            onClose={handleExportMenuClose}
-          >
-            <MenuItem onClick={() => { handleExportMenuClose(); handleExport(false, null); }}>
-              <DownloadIcon sx={{ mr: 1, fontSize: 20 }} />
-              Export All as File
-            </MenuItem>
-            <MenuItem onClick={() => { handleExportMenuClose(); handleExport(true, null); }}>
-              <ContentCopyIcon sx={{ mr: 1, fontSize: 20 }} />
-              Export All as Text
-            </MenuItem>
-            {selectedTab > 0 && (() => {
-              const collectionMap = {
-                1: 'Exe',
-                2: 'Script',
-                3: 'Dll',
-                4: 'Msi',
-                5: 'Appx',
-              }
-              const collectionType = collectionMap[selectedTab]
-              return (
-                <>
-                  <MenuItem onClick={() => { handleExportMenuClose(); handleExport(false, collectionType); }}>
-                    <DownloadIcon sx={{ mr: 1, fontSize: 20 }} />
-                    Export {collectionType} as File
+
+          {/* Mobile Menu */}
+          {isMobile && (
+            <>
+              <IconButton
+                color="inherit"
+                onClick={handleMobileMenuOpen}
+                sx={{ ml: 'auto' }}
+              >
+                <MenuIcon />
+              </IconButton>
+              <Menu
+                anchorEl={mobileMenuAnchor}
+                open={Boolean(mobileMenuAnchor)}
+                onClose={handleMobileMenuClose}
+              >
+                <MenuItem onClick={() => { handleMobileMenuClose(); handleAddRule(); }}>
+                  <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Add Rule</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { handleMobileMenuClose(); handleImportDefaults(); }}>
+                  <ListItemIcon><CloudDownloadIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Default Rules</ListItemText>
+                </MenuItem>
+                <MenuItem 
+                  onClick={() => { handleMobileMenuClose(); handleClearRules(selectedTab); }}
+                  disabled={!filteredRules || filteredRules.length === 0}
+                >
+                  <ListItemIcon><DeleteIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>
+                    {selectedTab === 0 ? 'Clear All' : `Clear ${currentCollection || 'Collection'}`}
+                  </ListItemText>
+                </MenuItem>
+                <Divider />
+                <Typography variant="caption" sx={{ px: 2, py: 1, color: 'text.secondary' }}>File</Typography>
+                <label htmlFor="import-button-file">
+                  <MenuItem component="span" onClick={handleMobileMenuClose}>
+                    <ListItemIcon><UploadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>Import from File</ListItemText>
                   </MenuItem>
-                  <MenuItem onClick={() => { handleExportMenuClose(); handleExport(true, collectionType); }}>
-                    <ContentCopyIcon sx={{ mr: 1, fontSize: 20 }} />
-                    Export {collectionType} as Text
+                </label>
+                <MenuItem onClick={() => { handleMobileMenuClose(); handleImportFromText(); }}>
+                  <ListItemIcon><UploadIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Import from Text</ListItemText>
+                </MenuItem>
+                <MenuItem 
+                  onClick={() => { handleMobileMenuClose(); handleExport(false, null); }}
+                  disabled={rules.length === 0}
+                >
+                  <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Export All as File</ListItemText>
+                </MenuItem>
+                <MenuItem 
+                  onClick={() => { handleMobileMenuClose(); handleExport(true, null); }}
+                  disabled={rules.length === 0}
+                >
+                  <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Export All as Text</ListItemText>
+                </MenuItem>
+                <Divider />
+                <Typography variant="caption" sx={{ px: 2, py: 1, color: 'text.secondary' }}>Tools</Typography>
+                <MenuItem onClick={() => { handleMobileMenuClose(); setValidationDialogOpen(true); }}>
+                  <ListItemIcon><VerifiedUserIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Validate Policy</ListItemText>
+                </MenuItem>
+                <MenuItem component={Link} to="/hardening" onClick={handleMobileMenuClose}>
+                  <ListItemIcon><SecurityIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Policy Hardening</ListItemText>
+                </MenuItem>
+                <MenuItem component={Link} to="/docs" onClick={handleMobileMenuClose}>
+                  <ListItemIcon><MenuBookIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Documentation</ListItemText>
+                </MenuItem>
+              </Menu>
+            </>
+          )}
+
+          {/* Desktop Menu */}
+          {!isMobile && (
+            <>
+              <Button
+                color="inherit"
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={handleAddRule}
+                sx={{ mr: 1 }}
+              >
+                Add Rule
+              </Button>
+              
+              <Button
+                color="inherit"
+                startIcon={<CloudDownloadIcon />}
+                onClick={handleImportDefaults}
+                sx={{ mr: 1 }}
+              >
+                Default Rules
+              </Button>
+              
+              <Button
+                color="inherit"
+                startIcon={<DeleteIcon />}
+                onClick={() => handleClearRules(selectedTab)}
+                disabled={!filteredRules || filteredRules.length === 0}
+                sx={{ mr: 1 }}
+              >
+                {selectedTab === 0 ? 'Clear All' : `Clear ${currentCollection || 'Collection'}`}
+              </Button>
+              
+              <Button
+                color="inherit"
+                startIcon={<FolderIcon />}
+                endIcon={<ArrowDropDownIcon />}
+                onClick={handleFileMenuOpen}
+                sx={{ mr: 1 }}
+              >
+                File
+              </Button>
+              <Menu
+                anchorEl={fileMenuAnchor}
+                open={Boolean(fileMenuAnchor)}
+                onClose={handleFileMenuClose}
+              >
+                <label htmlFor="import-button-file">
+                  <MenuItem component="span" onClick={handleFileMenuClose}>
+                    <ListItemIcon><UploadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>Import from File</ListItemText>
                   </MenuItem>
-                </>
-              )
-            })()}
-          </Menu>
-          <Button
-            color="inherit"
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={handleAddRule}
-            sx={{ mr: 1 }}
-          >
-            Add Rule
-          </Button>
-          <Button
-            color="inherit"
-            component={Link}
-            to="/docs"
-            startIcon={<MenuBookIcon />}
-            sx={{ mr: 1 }}
-          >
-            Docs
-          </Button>
-          <Button
-            color="inherit"
-            component={Link}
-            to="/hardening"
-            startIcon={<SecurityIcon />}
-            sx={{ mr: 1 }}
-          >
-            Hardening
-          </Button>
-          <Button
-            color="inherit"
-            onClick={toggleColorMode}
-            startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {mode === 'dark' ? 'Light' : 'Dark'}
-          </Button>
+                </label>
+                <MenuItem onClick={() => { handleFileMenuClose(); handleImportFromText(); }}>
+                  <ListItemIcon><UploadIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Import from Text</ListItemText>
+                </MenuItem>
+                <Divider />
+                <MenuItem 
+                  onClick={() => { handleFileMenuClose(); handleExport(false, null); }}
+                  disabled={rules.length === 0}
+                >
+                  <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Export All as File</ListItemText>
+                </MenuItem>
+                <MenuItem 
+                  onClick={() => { handleFileMenuClose(); handleExport(true, null); }}
+                  disabled={rules.length === 0}
+                >
+                  <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Export All as Text</ListItemText>
+                </MenuItem>
+                {selectedTab > 0 && currentCollection && (
+                  <>
+                    <Divider />
+                    <MenuItem 
+                      onClick={() => { handleFileMenuClose(); handleExport(false, currentCollection); }}
+                      disabled={rules.length === 0}
+                    >
+                      <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>Export {currentCollection} as File</ListItemText>
+                    </MenuItem>
+                    <MenuItem 
+                      onClick={() => { handleFileMenuClose(); handleExport(true, currentCollection); }}
+                      disabled={rules.length === 0}
+                    >
+                      <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText>Export {currentCollection} as Text</ListItemText>
+                    </MenuItem>
+                  </>
+                )}
+              </Menu>
+
+              <Button
+                color="inherit"
+                startIcon={<BuildIcon />}
+                endIcon={<ArrowDropDownIcon />}
+                onClick={handleToolsMenuOpen}
+                sx={{ mr: 1 }}
+              >
+                Tools
+              </Button>
+              <Menu
+                anchorEl={toolsMenuAnchor}
+                open={Boolean(toolsMenuAnchor)}
+                onClose={handleToolsMenuClose}
+              >
+                <MenuItem onClick={() => { handleToolsMenuClose(); setValidationDialogOpen(true); }}>
+                  <ListItemIcon><VerifiedUserIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Validate Policy</ListItemText>
+                </MenuItem>
+                <MenuItem component={Link} to="/hardening" onClick={handleToolsMenuClose}>
+                  <ListItemIcon><SecurityIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText>Policy Hardening</ListItemText>
+                </MenuItem>
+              </Menu>
+
+              <Button
+                color="inherit"
+                component={Link}
+                to="/docs"
+                startIcon={<MenuBookIcon />}
+                sx={{ mr: 1 }}
+              >
+                Docs
+              </Button>
+            </>
+          )}
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ mt: 3, mb: 3 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs value={selectedTab} onChange={handleTabChange}>
-            <Tab label="All Rules" />
-            <Tab label="Executables" />
-            <Tab label="Scripts" />
-            <Tab label="DLLs" />
-            <Tab label="Windows Installer" />
-            <Tab label="Packaged Apps" />
+      <Container 
+        maxWidth="xl" 
+        sx={{ 
+          mt: { xs: 2, md: 3 }, 
+          mb: { xs: 2, md: 3 }, 
+          px: { xs: 1, md: 3 }, 
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'auto',
+        }}
+      >
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: { xs: 2, md: 3 }, overflowX: 'auto' }}>
+          <Tabs 
+            value={selectedTab} 
+            onChange={handleTabChange}
+            variant={isMobile ? "scrollable" : "standard"}
+            scrollButtons="auto"
+            sx={{ minWidth: { xs: '100%', md: 'auto' } }}
+          >
+            <Tab label={isMobile ? "All" : "All Rules"} />
+            <Tab label={isMobile ? "Exe" : "Executables"} />
+            <Tab label={isMobile ? "Script" : "Scripts"} />
+            <Tab label={isMobile ? "DLL" : "DLLs"} />
+            <Tab label={isMobile ? "MSI" : "Windows Installer"} />
+            <Tab label={isMobile ? "Appx" : "Packaged Apps"} />
           </Tabs>
         </Box>
 
@@ -663,6 +833,87 @@ function PolicyCreator() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog
+        open={validationDialogOpen}
+        onClose={() => setValidationDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>Policy Validation & Testing</DialogTitle>
+        <DialogContent>
+          <ValidationPanel
+            rules={rules}
+            onRuleClick={(ruleId) => {
+              const rule = rules.find(r => r.id === ruleId)
+              if (rule) {
+                setValidationDialogOpen(false)
+                handleEditRule(rule)
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setValidationDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Footer */}
+      <Box
+        component="footer"
+        sx={{
+          mt: 'auto',
+          py: 0.5,
+          px: 1.5,
+          borderTop: 1,
+          borderColor: 'divider',
+          bgcolor: mode === 'dark' ? 'background.paper' : 'grey.50',
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
+          flexShrink: 0,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+            AppLockerCloud
+          </Typography>
+          <Box
+            component="a"
+            href="https://github.com/mverschu/AppLockerCloud"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.25,
+              color: 'text.secondary',
+              textDecoration: 'none',
+              '&:hover': {
+                color: 'primary.main',
+              },
+            }}
+          >
+            <GitHubIcon sx={{ fontSize: '0.875rem' }} />
+            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>GitHub</Typography>
+          </Box>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <IconButton
+            size="small"
+            onClick={toggleColorMode}
+            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            sx={{ color: 'text.secondary', padding: 0.5 }}
+          >
+            {mode === 'dark' ? <LightModeIcon sx={{ fontSize: '1rem' }} /> : <DarkModeIcon sx={{ fontSize: '1rem' }} />}
+          </IconButton>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+            {mode === 'dark' ? 'Light' : 'Dark'}
+          </Typography>
+        </Box>
+      </Box>
     </Box>
   )
 }
@@ -670,57 +921,117 @@ function PolicyCreator() {
 function DocsPage() {
   const location = useLocation()
   const { mode, toggleColorMode } = useThemeMode()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component={Link} to="/" sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}>
-            AppLocker Policy Creator
+        <Toolbar sx={{ flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+          <Typography 
+            variant={isMobile ? "subtitle1" : "h6"} 
+            component={Link} 
+            to="/" 
+            sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}
+          >
+            {isMobile ? 'AppLocker' : 'AppLocker Policy Creator'}
           </Typography>
-          <Button
-            color="inherit"
-            component={Link}
-            to="/"
-            sx={{ mr: 1 }}
-          >
-            Policy Creator
-          </Button>
-          <Button
-            color="inherit"
-            component={Link}
-            to="/docs"
-            startIcon={<MenuBookIcon />}
-            sx={{
-              backgroundColor: location.pathname === '/docs' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-              mr: 1,
-            }}
-          >
-            Documentation
-          </Button>
-          <Button
-            color="inherit"
-            component={Link}
-            to="/hardening"
-            startIcon={<SecurityIcon />}
-            sx={{
-              backgroundColor: location.pathname === '/hardening' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-              mr: 1,
-            }}
-          >
-            Hardening
-          </Button>
-          <Button
-            color="inherit"
-            onClick={toggleColorMode}
-            startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {mode === 'dark' ? 'Light' : 'Dark'}
-          </Button>
+          {!isMobile && (
+            <>
+              <Button
+                color="inherit"
+                component={Link}
+                to="/"
+                sx={{ mr: 1 }}
+              >
+                Policy Creator
+              </Button>
+              <Button
+                color="inherit"
+                component={Link}
+                to="/docs"
+                startIcon={<MenuBookIcon />}
+                sx={{
+                  backgroundColor: location.pathname === '/docs' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  mr: 1,
+                }}
+              >
+                Documentation
+              </Button>
+              <Button
+                color="inherit"
+                component={Link}
+                to="/hardening"
+                startIcon={<SecurityIcon />}
+                sx={{
+                  backgroundColor: location.pathname === '/hardening' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  mr: 1,
+                }}
+              >
+                Hardening
+              </Button>
+            </>
+          )}
         </Toolbar>
       </AppBar>
       <Docs />
+      
+      {/* Footer */}
+      <Box
+        component="footer"
+        sx={{
+          mt: 'auto',
+          py: 0.5,
+          px: 1.5,
+          borderTop: 1,
+          borderColor: 'divider',
+          bgcolor: mode === 'dark' ? 'background.paper' : 'grey.50',
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
+          flexShrink: 0,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+            AppLockerCloud
+          </Typography>
+          <Box
+            component="a"
+            href="https://github.com/mverschu/AppLockerCloud"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.25,
+              color: 'text.secondary',
+              textDecoration: 'none',
+              '&:hover': {
+                color: 'primary.main',
+              },
+            }}
+          >
+            <GitHubIcon sx={{ fontSize: '0.875rem' }} />
+            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>GitHub</Typography>
+          </Box>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <IconButton
+            size="small"
+            onClick={toggleColorMode}
+            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            sx={{ color: 'text.secondary', padding: 0.5 }}
+          >
+            {mode === 'dark' ? <LightModeIcon sx={{ fontSize: '1rem' }} /> : <DarkModeIcon sx={{ fontSize: '1rem' }} />}
+          </IconButton>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+            {mode === 'dark' ? 'Light' : 'Dark'}
+          </Typography>
+        </Box>
+      </Box>
     </Box>
   )
 }
@@ -728,13 +1039,20 @@ function DocsPage() {
 function HardeningPage() {
   const location = useLocation()
   const { mode, toggleColorMode } = useThemeMode()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component={Link} to="/" sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}>
-            AppLocker Policy Creator
+        <Toolbar sx={{ flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+          <Typography 
+            variant={isMobile ? "subtitle1" : "h6"} 
+            component={Link} 
+            to="/" 
+            sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}
+          >
+            {isMobile ? 'AppLocker' : 'AppLocker Policy Creator'}
           </Typography>
           <Button
             color="inherit"
@@ -765,17 +1083,66 @@ function HardeningPage() {
           >
             Hardening
           </Button>
-          <Button
-            color="inherit"
-            onClick={toggleColorMode}
-            startIcon={mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {mode === 'dark' ? 'Light' : 'Dark'}
-          </Button>
         </Toolbar>
       </AppBar>
       <PolicyHardening />
+      
+      {/* Footer */}
+      <Box
+        component="footer"
+        sx={{
+          mt: 'auto',
+          py: 0.5,
+          px: 1.5,
+          borderTop: 1,
+          borderColor: 'divider',
+          bgcolor: mode === 'dark' ? 'background.paper' : 'grey.50',
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
+          flexShrink: 0,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+            AppLockerCloud
+          </Typography>
+          <Box
+            component="a"
+            href="https://github.com/mverschu/AppLockerCloud"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.25,
+              color: 'text.secondary',
+              textDecoration: 'none',
+              '&:hover': {
+                color: 'primary.main',
+              },
+            }}
+          >
+            <GitHubIcon sx={{ fontSize: '0.875rem' }} />
+            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>GitHub</Typography>
+          </Box>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <IconButton
+            size="small"
+            onClick={toggleColorMode}
+            title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            sx={{ color: 'text.secondary', padding: 0.5 }}
+          >
+            {mode === 'dark' ? <LightModeIcon sx={{ fontSize: '1rem' }} /> : <DarkModeIcon sx={{ fontSize: '1rem' }} />}
+          </IconButton>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+            {mode === 'dark' ? 'Light' : 'Dark'}
+          </Typography>
+        </Box>
+      </Box>
     </Box>
   )
 }
