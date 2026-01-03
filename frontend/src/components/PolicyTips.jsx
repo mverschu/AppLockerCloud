@@ -193,6 +193,61 @@ export const getRuleTips = (rule) => {
     })
   }
   
+  // Check for Appx rules that allow all signed packaged apps
+  if (rule.action === 'Allow' && rule.collection === 'Appx') {
+    const allowsAllSignedApps = rule.conditions && rule.conditions.some(cond => {
+      if (!cond || cond.type !== 'FilePublisherCondition') return false
+      return cond.publisher_name === '*' || cond.publisher_name === ''
+    })
+    
+    if (allowsAllSignedApps) {
+      tips.push({
+        type: 'warning',
+        title: 'Overly Permissive Packaged App Rule',
+        content: (
+          <Box>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              This rule allows all signed packaged apps from any publisher. This is a significant security risk as it allows execution of any store app that is signed, including potentially malicious ones like Python3, which can enable attackers to execute unwanted code without easy detection.
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium' }}>
+              Recommended security improvements:
+            </Typography>
+            <List dense sx={{ pl: 2, mb: 2 }}>
+              <ListItem disablePadding>
+                <ListItemText
+                  primary={
+                    <Typography variant="body2">
+                      <strong>Option 1:</strong> Limit to Microsoft Corporation as the publisher. Change the Publisher Name from <code>*</code> to:
+                    </Typography>
+                  }
+                  secondary={
+                    <Box sx={{ pl: 2, mt: 0.5 }}>
+                      <Typography variant="caption" component="div" sx={{ fontFamily: 'monospace' }}>
+                        CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=WA, C=US
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </ListItem>
+              <ListItem disablePadding sx={{ mt: 1 }}>
+                <ListItemText
+                  primary={
+                    <Typography variant="body2">
+                      <strong>Option 2:</strong> Deny everything and create explicit allow rules for only the packaged apps you need. This provides the strongest security posture.
+                    </Typography>
+                  }
+                />
+              </ListItem>
+            </List>
+            <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+              The default rule allows any signed store app, which can be exploited by attackers to run code that appears legitimate but is not from trusted sources.
+            </Typography>
+          </Box>
+        ),
+      })
+    }
+  }
+  
   // Check if rule allows Windows or Program Files execution (for living-off-the-land tip)
   // Only show this tip for Executable (Exe) collection rules and not for administrators
   const allowsWindows = rule.conditions && rule.conditions.some(cond => {

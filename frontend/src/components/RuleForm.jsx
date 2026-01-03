@@ -139,6 +139,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
   const [pathSuggestion, setPathSuggestion] = useState({ original: '', suggested: '', type: null }) // type: 'condition' or 'exception'
   const [exceptionDetailDialog, setExceptionDetailDialog] = useState({ open: false, exception: null, index: null })
   const [editingExceptionIndex, setEditingExceptionIndex] = useState(null) // null when not editing, index when editing
+  const [editingConditionIndex, setEditingConditionIndex] = useState(null) // null when not editing, index when editing
   const [loadingHash, setLoadingHash] = useState(false)
   const [hashFileInputKey, setHashFileInputKey] = useState(0) // For resetting file input
   const [peFileWarning, setPeFileWarning] = useState({ show: false, isException: false }) // Track PE file warning
@@ -169,6 +170,9 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
         exceptions: [],
       })
     }
+    // Reset editing states when dialog opens/closes or rule changes
+    setEditingConditionIndex(null)
+    setEditingExceptionIndex(null)
   }, [rule, open])
 
   const loadCollections = async () => {
@@ -289,11 +293,88 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
     }
 
     if (newConditionObj) {
-      setFormData({
-        ...formData,
-        conditions: [...formData.conditions, newConditionObj],
+      if (editingConditionIndex !== null) {
+        // Update existing condition
+        const updatedConditions = [...formData.conditions]
+        updatedConditions[editingConditionIndex] = newConditionObj
+        setFormData({
+          ...formData,
+          conditions: updatedConditions,
+        })
+        setEditingConditionIndex(null)
+      } else {
+        // Add new condition
+        setFormData({
+          ...formData,
+          conditions: [...formData.conditions, newConditionObj],
+        })
+      }
+    }
+    setNewCondition({
+      type: 'FilePathCondition',
+      path: '',
+      publisher_name: '',
+      product_name: '',
+      binary_name: '',
+      version_range_type: 'any',
+      version_value: '',
+      version: '',
+      file_hash: '',
+      source_file_name: '',
+    })
+    setPathSuggestion({ original: '', suggested: '', type: null })
+  }
+
+  const handleEditCondition = (index) => {
+    const condition = formData.conditions[index]
+    setEditingConditionIndex(index)
+    
+    // Populate form with existing condition data
+    if (condition.type === 'FilePathCondition') {
+      setNewCondition({
+        type: 'FilePathCondition',
+        path: condition.path || '',
+        publisher_name: '',
+        product_name: '',
+        binary_name: '',
+        version_range_type: 'any',
+        version_value: '',
+        version: '',
+        file_hash: '',
+        source_file_name: '',
+      })
+    } else if (condition.type === 'FilePublisherCondition') {
+      setNewCondition({
+        type: 'FilePublisherCondition',
+        path: '',
+        publisher_name: condition.publisher_name || '',
+        product_name: condition.product_name || '',
+        binary_name: condition.binary_name || '',
+        version_range_type: condition.version_range_type || 'any',
+        version_value: condition.version_value || '',
+        version: condition.version || '',
+        file_hash: '',
+        source_file_name: '',
+      })
+    } else if (condition.type === 'FileHashCondition') {
+      setNewCondition({
+        type: 'FileHashCondition',
+        path: '',
+        publisher_name: '',
+        product_name: '',
+        binary_name: '',
+        version_range_type: 'any',
+        version_value: '',
+        version: '',
+        file_hash: condition.file_hash || '',
+        source_file_name: condition.source_file_name || '',
       })
     }
+    setPathSuggestion({ original: '', suggested: '', type: null })
+  }
+
+  const handleCancelEditCondition = () => {
+    setEditingConditionIndex(null)
     setNewCondition({
       type: 'FilePathCondition',
       path: '',
@@ -314,6 +395,13 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
       ...formData,
       conditions: formData.conditions.filter((_, i) => i !== index),
     })
+    // If we're editing the condition that was deleted, cancel edit mode
+    if (editingConditionIndex === index) {
+      handleCancelEditCondition()
+    } else if (editingConditionIndex !== null && editingConditionIndex > index) {
+      // If we're editing a later condition, adjust the index
+      setEditingConditionIndex(editingConditionIndex - 1)
+    }
   }
 
   const handleExceptionFieldChange = (field) => (event) => {
@@ -678,6 +766,9 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                               {condition.path || 'N/A'}
                             </Typography>
                           </Box>
+                          <IconButton size="small" onClick={() => handleEditCondition(index)} color="primary">
+                            <EditIcon />
+                          </IconButton>
                           <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
                             <DeleteIcon />
                           </IconButton>
@@ -711,6 +802,9 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                               {versionInfo}
                             </Typography>
                           </Box>
+                          <IconButton size="small" onClick={() => handleEditCondition(index)} color="primary">
+                            <EditIcon />
+                          </IconButton>
                           <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
                             <DeleteIcon />
                           </IconButton>
@@ -734,6 +828,9 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                               </Typography>
                             )}
                           </Box>
+                          <IconButton size="small" onClick={() => handleEditCondition(index)} color="primary">
+                            <EditIcon />
+                          </IconButton>
                           <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
                             <DeleteIcon />
                           </IconButton>
@@ -745,6 +842,9 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                           <Box sx={{ flex: 1 }}>
                             <Typography variant="body2">{condition.type || 'Unknown'}</Typography>
                           </Box>
+                          <IconButton size="small" onClick={() => handleEditCondition(index)} color="primary">
+                            <EditIcon />
+                          </IconButton>
                           <IconButton size="small" onClick={() => handleRemoveCondition(index)} color="error">
                             <DeleteIcon />
                           </IconButton>
@@ -759,7 +859,7 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
             <Grid item xs={12}>
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography>Add Condition</Typography>
+                  <Typography>{editingConditionIndex !== null ? `Edit Condition ${editingConditionIndex + 1}` : 'Add Condition'}</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -929,13 +1029,23 @@ const RuleForm = ({ open, onClose, rule, onSave }) => {
                       </>
                     )}
 
-                    <Button
-                      variant="outlined"
-                      startIcon={<AddIcon />}
-                      onClick={handleAddCondition}
-                    >
-                      Add Condition
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        variant="contained"
+                        startIcon={editingConditionIndex !== null ? <EditIcon /> : <AddIcon />}
+                        onClick={handleAddCondition}
+                      >
+                        {editingConditionIndex !== null ? 'Update Condition' : 'Add Condition'}
+                      </Button>
+                      {editingConditionIndex !== null && (
+                        <Button
+                          variant="outlined"
+                          onClick={handleCancelEditCondition}
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </Box>
                   </Box>
                 </AccordionDetails>
               </Accordion>

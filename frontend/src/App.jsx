@@ -18,6 +18,9 @@ import {
   TextField,
   Menu,
   MenuItem,
+  InputAdornment,
+  IconButton,
+  Paper,
 } from '@mui/material'
 import {
   Download as DownloadIcon,
@@ -31,6 +34,8 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Security as SecurityIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material'
 import RuleList from './components/RuleList'
 import RuleForm from './components/RuleForm'
@@ -53,6 +58,7 @@ function PolicyCreator() {
   const [exportXmlText, setExportXmlText] = useState('')
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null)
   const [clearConfirmDialog, setClearConfirmDialog] = useState({ open: false, collection: null })
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     loadRules()
@@ -249,20 +255,96 @@ function PolicyCreator() {
     setClearConfirmDialog({ open: false, collection: null })
   }
 
+  // Filter rules by search query
+  const filterRulesBySearch = (rulesToFilter, query) => {
+    if (!query || !query.trim()) return rulesToFilter
+    
+    const searchLower = query.toLowerCase().trim()
+    
+    return rulesToFilter.filter(rule => {
+      if (!rule) return false
+      
+      // Search in name
+      if (rule.name && rule.name.toLowerCase().includes(searchLower)) return true
+      
+      // Search in description
+      if (rule.description && rule.description.toLowerCase().includes(searchLower)) return true
+      
+      // Search in collection
+      if (rule.collection && rule.collection.toLowerCase().includes(searchLower)) return true
+      
+      // Search in action
+      if (rule.action && rule.action.toLowerCase().includes(searchLower)) return true
+      
+      // Search in user/group SID
+      if (rule.user_or_group_sid && rule.user_or_group_sid.toLowerCase().includes(searchLower)) return true
+      
+      // Search in conditions
+      if (rule.conditions && Array.isArray(rule.conditions)) {
+        for (const condition of rule.conditions) {
+          if (!condition) continue
+          
+          // FilePathCondition
+          if (condition.path && condition.path.toLowerCase().includes(searchLower)) return true
+          
+          // FilePublisherCondition
+          if (condition.publisher_name && condition.publisher_name.toLowerCase().includes(searchLower)) return true
+          if (condition.product_name && condition.product_name.toLowerCase().includes(searchLower)) return true
+          if (condition.binary_name && condition.binary_name.toLowerCase().includes(searchLower)) return true
+          
+          // FileHashCondition
+          if (condition.file_hash && condition.file_hash.toLowerCase().includes(searchLower)) return true
+          if (condition.source_file_name && condition.source_file_name.toLowerCase().includes(searchLower)) return true
+        }
+      }
+      
+      // Search in exceptions
+      if (rule.exceptions && Array.isArray(rule.exceptions)) {
+        for (const exception of rule.exceptions) {
+          if (!exception) continue
+          
+          // FilePathCondition exception
+          if (exception.path && exception.path.toLowerCase().includes(searchLower)) return true
+          
+          // FilePublisherCondition exception
+          if (exception.publisher_name && exception.publisher_name.toLowerCase().includes(searchLower)) return true
+          if (exception.product_name && exception.product_name.toLowerCase().includes(searchLower)) return true
+          if (exception.binary_name && exception.binary_name.toLowerCase().includes(searchLower)) return true
+          
+          // FileHashCondition exception
+          if (exception.file_hash && exception.file_hash.toLowerCase().includes(searchLower)) return true
+          if (exception.source_file_name && exception.source_file_name.toLowerCase().includes(searchLower)) return true
+        }
+      }
+      
+      return false
+    })
+  }
+
   const filteredRules = useMemo(() => {
     if (!rules || rules.length === 0) return []
-    if (selectedTab === 0) return rules
-    const collectionMap = {
-      1: 'Exe',
-      2: 'Script',
-      3: 'Dll',
-      4: 'Msi',
-      5: 'Appx',
+    
+    // First filter by collection tab
+    let filtered = rules
+    if (selectedTab !== 0) {
+      const collectionMap = {
+        1: 'Exe',
+        2: 'Script',
+        3: 'Dll',
+        4: 'Msi',
+        5: 'Appx',
+      }
+      const targetCollection = collectionMap[selectedTab]
+      if (targetCollection) {
+        filtered = rules.filter(rule => rule && rule.collection === targetCollection)
+      } else {
+        return []
+      }
     }
-    const targetCollection = collectionMap[selectedTab]
-    if (!targetCollection) return []
-    return rules.filter(rule => rule && rule.collection === targetCollection)
-  }, [rules, selectedTab])
+    
+    // Then filter by search query
+    return filterRulesBySearch(filtered, searchQuery)
+  }, [rules, selectedTab, searchQuery])
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -424,6 +506,39 @@ function PolicyCreator() {
             <Tab label="Packaged Apps" />
           </Tabs>
         </Box>
+
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <TextField
+            fullWidth
+            placeholder="Search rules by name, description, collection, action, paths, publishers, hashes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => setSearchQuery('')}
+                    edge="end"
+                  >
+                    <ClearIcon />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+            variant="outlined"
+          />
+          {searchQuery && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Found {filteredRules.length} rule{filteredRules.length !== 1 ? 's' : ''} matching "{searchQuery}"
+            </Typography>
+          )}
+        </Paper>
 
         <RuleList
           rules={filteredRules || []}
