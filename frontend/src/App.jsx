@@ -657,16 +657,16 @@ function PolicyCreator() {
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
-          overflow: 'auto',
+          overflow: 'hidden',
         }}
       >
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: { xs: 2, md: 3 }, overflowX: 'auto' }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: { xs: 2, md: 3 }, flexShrink: 0, width: '100%', overflow: 'visible' }}>
           <Tabs 
             value={selectedTab} 
             onChange={handleTabChange}
             variant={isMobile ? "scrollable" : "standard"}
-            scrollButtons="auto"
-            sx={{ minWidth: { xs: '100%', md: 'auto' } }}
+            scrollButtons={isMobile ? "auto" : false}
+            sx={{ width: '100%', minHeight: 48 }}
           >
             <Tab label={isMobile ? "All" : "All Rules"} />
             <Tab label={isMobile ? "Exe" : "Executables"} />
@@ -677,44 +677,46 @@ function PolicyCreator() {
           </Tabs>
         </Box>
 
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <TextField
-            fullWidth
-            placeholder="Search rules by name, description, collection, action, paths, publishers, hashes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-              endAdornment: searchQuery ? (
-                <InputAdornment position="end">
-                  <IconButton
-                    size="small"
-                    onClick={() => setSearchQuery('')}
-                    edge="end"
-                  >
-                    <ClearIcon />
-                  </IconButton>
-                </InputAdornment>
-              ) : null,
-            }}
-            variant="outlined"
-          />
-          {searchQuery && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Found {filteredRules.length} rule{filteredRules.length !== 1 ? 's' : ''} matching "{searchQuery}"
-            </Typography>
-          )}
-        </Paper>
+        <Box sx={{ flexGrow: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <Paper sx={{ p: 2, mb: 3, flexShrink: 0 }}>
+            <TextField
+              fullWidth
+              placeholder="Search rules by name, description, collection, action, paths, publishers, hashes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setSearchQuery('')}
+                      edge="end"
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              }}
+              variant="outlined"
+            />
+            {searchQuery && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Found {filteredRules.length} rule{filteredRules.length !== 1 ? 's' : ''} matching "{searchQuery}"
+              </Typography>
+            )}
+          </Paper>
 
-        <RuleList
-          rules={filteredRules || []}
-          onEdit={handleEditRule}
-          onDelete={loadRules}
-        />
+          <RuleList
+            rules={filteredRules || []}
+            onEdit={handleEditRule}
+            onDelete={loadRules}
+          />
+        </Box>
 
         <RuleForm
           open={openForm}
